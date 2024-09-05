@@ -1,0 +1,23 @@
+{
+    "name": "com.ars.probridge-sensors",
+    "version": "1.0.0",
+    "displayName": "ProBridgeSensors",
+    "description": "ProBridge plugin for sensors implementation",
+    "unity": "2018.4",
+    "type": "library",
+    "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.0.2",
+        "com.ars.probridge": "2.2.0"
+    },
+    "keywords": [
+        "ROS",
+        "Unity",
+        "ProBridge",
+        "Sensors"
+    ],
+    "author": {
+        "name": "ARS",
+        "email": "proninaa@a-r-s.dev",
+        "url": "https://g.a-r-s.dev/Unity/ProBridge.git"
+    }
+}
