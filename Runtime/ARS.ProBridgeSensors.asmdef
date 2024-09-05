@@ -1,0 +1,16 @@
+{
+    "name": "ARS.ProBridgeSensors",
+    "rootNamespace": "",
+    "references": [
+        "GUID:52e0c9b0743eb4e409ccf123c160c71e"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
