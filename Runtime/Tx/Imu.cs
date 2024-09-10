@@ -8,7 +8,7 @@ namespace ProBridgeSenors.Tx
 {
     [AddComponentMenu("ProBridge/Tx/Sensor/Imu")]
     [RequireComponent(typeof(Rigidbody))]
-    public class Imu : ProBridgeTxStamped<ProBridge.ROS.Msgs.Sensors.Imu>
+    public class Imu : ProBridgeTxStamped<sensor_msgs.msg.Imu>
     {
         public Rigidbody Body { get; private set; }
         public Vector3 Acceleration { get; private set; }
