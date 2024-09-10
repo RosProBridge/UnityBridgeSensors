@@ -1,13 +1,12 @@
 using System;
-using ProBridge.ROS.Msgs.Sensors;
 using UnitySensors.Sensor.LiDAR;
-using ProBridge.ROS.Msgs.Std;
+using sensor_msgs.msg;
 using Unity.Collections;
 
 
 namespace ProBridge.Tx.Sensor
 {
-    public class LiDARPointCloud2Tx : ProBridgeTxStamped<ROS.Msgs.Sensors.PointCloud2>
+    public class LiDARPointCloud2Tx : ProBridgeTxStamped<PointCloud2>
     {
         public RaycastLiDARSensor sensor;
 
