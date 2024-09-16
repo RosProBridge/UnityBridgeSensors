@@ -26,8 +26,6 @@ namespace UnitySensors.Sensor
         {
             _dt = 0.0f;
             _frequency_inv = 1.0f / _frequency;
-
-            //Init();
         }
 
         protected virtual void Update()
@@ -48,7 +46,7 @@ namespace UnitySensors.Sensor
         }
 
         public abstract void Init();
-        protected abstract void UpdateSensor();
+        public abstract void UpdateSensor();
         protected abstract void OnSensorDestroy();
     }
 }

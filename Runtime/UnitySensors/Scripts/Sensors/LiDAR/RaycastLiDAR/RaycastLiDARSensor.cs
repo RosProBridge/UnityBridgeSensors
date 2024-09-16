@@ -87,7 +87,7 @@ namespace UnitySensors.Sensor.LiDAR
             };
         }
 
-        protected override void UpdateSensor()
+        public override void UpdateSensor()
         {
             _updateRaycastCommandsJob.origin = _transform.position;
             _updateRaycastCommandsJob.localToWorldMatrix = _transform.localToWorldMatrix;

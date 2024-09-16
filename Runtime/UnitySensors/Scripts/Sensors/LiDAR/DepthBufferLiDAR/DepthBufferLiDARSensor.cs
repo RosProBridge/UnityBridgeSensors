@@ -144,7 +144,7 @@ namespace UnitySensors.Sensor.LiDAR
             };
         }
 
-        protected override void UpdateSensor()
+        public override void UpdateSensor()
         {
             if (!LoadTexture()) return;
 
