@@ -15,15 +15,9 @@ namespace ProBridge.Tx.Sensor
         
         [Header("Lidar Params")]
         public ScanPattern _scanPattern;
-        [SerializeField]
-        public int _pointsNumPerScan = 1;
-        [SerializeField]
         public float _minRange = 0.5f;
-        [SerializeField]
         public float _maxRange = 100.0f;
-        [SerializeField]
         public float _gaussianNoiseSigma = 0.0f;
-        [SerializeField]
         public float _maxIntensity = 255.0f;
         
         
@@ -40,7 +34,7 @@ namespace ProBridge.Tx.Sensor
             sensor = gameObject.AddComponent<RaycastLiDARSensor>();
             
             sensor._scanPattern = _scanPattern;
-            sensor._pointsNumPerScan = _pointsNumPerScan;
+            sensor._pointsNumPerScan = _scanPattern.scans.Length;
             sensor._minRange = _minRange;
             sensor._maxRange = _maxRange;
             sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
