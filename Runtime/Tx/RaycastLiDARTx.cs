@@ -1,4 +1,5 @@
 ﻿using System;
+using Codice.CM.WorkspaceServer.DataStore.Configuration;
 using UnitySensors.Sensor.LiDAR;
 using sensor_msgs.msg;
 using Unity.Collections;
@@ -26,6 +27,7 @@ namespace ProBridge.Tx.Sensor
         private IPointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
         private JobHandle _jobHandle;
         private NativeArray<byte> tempData;
+        private bool sensorReady = false;
 
 
         protected override void OnStart()
@@ -42,7 +44,9 @@ namespace ProBridge.Tx.Sensor
             sensor._frequency = 1.0f / sendRate;
 
             sensor.enabled = true;
+            sensor.onSensorUpdated += OnSensorUpdated;
             sensor.Init();
+            sensor.onSensorUpdated();
             
             
             
@@ -77,6 +81,11 @@ namespace ProBridge.Tx.Sensor
             base.OnStart();
         }
 
+        private void OnSensorUpdated()
+        {
+            sensorReady = true;
+        }
+
         private void CalculateFieldsOffset()
         {
             uint offset = 0;
@@ -89,11 +98,17 @@ namespace ProBridge.Tx.Sensor
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
         {
+            if (!sensorReady)
+            {
+                throw new Exception("Sensor is not ready");
+            }
             _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
             _jobHandle.Complete();
             _pointsToPointCloud2MsgJob.data.CopyTo(tempData);
 
             tempData.CopyTo(data.data);
+
+            sensorReady = false;
             
             return base.GetMsg(ts);
         }
