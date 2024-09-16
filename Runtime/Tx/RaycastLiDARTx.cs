@@ -9,7 +9,7 @@ using UnitySensors.Data.PointCloud;
 
 namespace ProBridge.Tx.Sensor
 {
-    [RequireComponent(typeof(RaycastLiDARSensor))]
+    // [RequireComponent(typeof(RaycastLiDARSensor))]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
         private RaycastLiDARSensor sensor;
@@ -28,10 +28,12 @@ namespace ProBridge.Tx.Sensor
             {
                 data.fields[i] = new PointField();
                 data.fields[i].name = ((char)('x' + i)).ToString();
-                data.fields[i].offset = (uint)(4 * i);
+                data.fields[i].offset = 0;
                 data.fields[i].datatype = PointField.FLOAT32;
                 data.fields[i].count = 1;
             }
+            
+            CalculateFieldsOffset();
 
             data.is_bigendian = false;
             data.width = (uint)sensor.pointsNum;
@@ -50,6 +52,16 @@ namespace ProBridge.Tx.Sensor
             
             
             base.OnStart();
+        }
+
+        private void CalculateFieldsOffset()
+        {
+            uint offset = 0;
+            foreach (var field in data.fields)
+            {
+                field.offset = offset;
+                offset += GetTypeSize(field) * field.count;
+            }
         }
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
@@ -79,40 +91,48 @@ namespace ProBridge.Tx.Sensor
             foreach (var field in data.fields)
             {
                 uint typeSize;
-                switch (field.datatype)
-                {
-                    case PointField.INT8:
-                        typeSize = 1;
-                        break;
-                    case PointField.UINT8:
-                        typeSize = 1;
-                        break;
-                    case PointField.INT16:
-                        typeSize = 2;
-                        break;
-                    case PointField.UINT16:
-                        typeSize = 2;
-                        break;
-                    case PointField.INT32:
-                        typeSize = 4;
-                        break;
-                    case PointField.UINT32:
-                        typeSize = 4;
-                        break;
-                    case PointField.FLOAT32:
-                        typeSize = 4;
-                        break;
-                    case PointField.FLOAT64:
-                        typeSize = 8;
-                        break;
-                    default:
-                        throw new InvalidOperationException($"Unsupported data type: {field.datatype}");
-                }
+                typeSize = GetTypeSize(field);
                 
                 size += typeSize * field.count;
             }
 
             return size;
+        }
+
+        private uint GetTypeSize(PointField field)
+        {
+            uint typeSize;
+            switch (field.datatype)
+            {
+                case PointField.INT8:
+                    typeSize = 1;
+                    break;
+                case PointField.UINT8:
+                    typeSize = 1;
+                    break;
+                case PointField.INT16:
+                    typeSize = 2;
+                    break;
+                case PointField.UINT16:
+                    typeSize = 2;
+                    break;
+                case PointField.INT32:
+                    typeSize = 4;
+                    break;
+                case PointField.UINT32:
+                    typeSize = 4;
+                    break;
+                case PointField.FLOAT32:
+                    typeSize = 4;
+                    break;
+                case PointField.FLOAT64:
+                    typeSize = 8;
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported data type: {field.datatype}");
+            }
+
+            return typeSize;
         }
     }
 }
