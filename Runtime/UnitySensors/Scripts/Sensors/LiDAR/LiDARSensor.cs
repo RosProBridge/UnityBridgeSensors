@@ -16,17 +16,17 @@ namespace UnitySensors.Sensor.LiDAR
         where T : struct, IPointXYZInterface
     {
         [SerializeField]
-        private ScanPattern _scanPattern;
+        public ScanPattern _scanPattern;
         [SerializeField]
-        private int _pointsNumPerScan = 1;
+        public int _pointsNumPerScan = 1;
         [SerializeField]
-        private float _minRange = 0.5f;
+        public float _minRange = 0.5f;
         [SerializeField]
-        private float _maxRange = 100.0f;
+        public float _maxRange = 100.0f;
         [SerializeField]
-        private float _gaussianNoiseSigma = 0.0f;
+        public float _gaussianNoiseSigma = 0.0f;
         [SerializeField]
-        private float _maxIntensity = 255.0f;
+        public float _maxIntensity = 255.0f;
 
         private PointCloud<T> _pointCloud;
 
@@ -38,7 +38,7 @@ namespace UnitySensors.Sensor.LiDAR
         public PointCloud<T> pointCloud { get => _pointCloud; }
         public int pointsNum { get => _pointsNumPerScan; }
 
-        protected override void Init()
+        public override void Init()
         {
             _pointsNumPerScan = Mathf.Clamp(_pointsNumPerScan, 1, scanPattern.size);
             _pointCloud = new PointCloud<T>()

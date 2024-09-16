@@ -40,7 +40,7 @@ namespace UnitySensors.Sensor.LiDAR
         private int _camerasNum = 0;
         private float _horizontalFOV;
 
-        protected override void Init()
+        public override void Init()
         {
             base.Init();
             _transform = this.transform;
