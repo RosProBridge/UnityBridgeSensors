@@ -31,7 +31,7 @@ namespace UnitySensors.Sensor.LiDAR
         
         private NativeArray<float> _noises;
 
-        protected override void Init()
+        public override void Init()
         {
             base.Init();
 

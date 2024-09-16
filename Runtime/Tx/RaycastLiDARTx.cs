@@ -12,6 +12,22 @@ namespace ProBridge.Tx.Sensor
     // [RequireComponent(typeof(RaycastLiDARSensor))]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
+        
+        [Header("Lidar Params")]
+        public ScanPattern _scanPattern;
+        [SerializeField]
+        public int _pointsNumPerScan = 1;
+        [SerializeField]
+        public float _minRange = 0.5f;
+        [SerializeField]
+        public float _maxRange = 100.0f;
+        [SerializeField]
+        public float _gaussianNoiseSigma = 0.0f;
+        [SerializeField]
+        public float _maxIntensity = 255.0f;
+        
+        
+        
         private RaycastLiDARSensor sensor;
         private IPointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
         private JobHandle _jobHandle;
@@ -20,7 +36,19 @@ namespace ProBridge.Tx.Sensor
 
         protected override void OnStart()
         {
-            sensor = GetComponent<RaycastLiDARSensor>();
+
+            sensor = gameObject.AddComponent<RaycastLiDARSensor>();
+            
+            sensor._scanPattern = _scanPattern;
+            sensor._pointsNumPerScan = _pointsNumPerScan;
+            sensor._minRange = _minRange;
+            sensor._maxRange = _maxRange;
+            sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
+            sensor._maxIntensity = _maxIntensity;
+
+            sensor.enabled = true;
+            sensor.Init();
+            
             
             
             data.fields = new PointField[3];
