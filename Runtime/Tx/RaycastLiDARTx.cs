@@ -39,6 +39,7 @@ namespace ProBridge.Tx.Sensor
             sensor._maxRange = _maxRange;
             sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
             sensor._maxIntensity = _maxIntensity;
+            sensor._frequency = 1.0f / sendRate;
 
             sensor.enabled = true;
             sensor.Init();
