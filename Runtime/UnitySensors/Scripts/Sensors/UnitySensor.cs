@@ -17,7 +17,7 @@ namespace UnitySensors.Sensor
         public OnSensorUpdated onSensorUpdated;
 
 
-        private float _frequency_inv;
+        public float _frequency_inv;
 
         public float dt { get => _frequency_inv; }
         public float time { get => _time; }
