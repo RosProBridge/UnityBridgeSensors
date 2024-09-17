@@ -18,6 +18,7 @@ namespace ProBridge.Tx.Sensor
         
         [Header("Lidar Params")]
         public ScanPattern _scanPattern;
+        public int _pointsNumPerScan = 10000;
         public float _minRange = 0.5f;
         public float _maxRange = 100.0f;
         public float _gaussianNoiseSigma = 0.0f;
@@ -41,7 +42,7 @@ namespace ProBridge.Tx.Sensor
             ScanPattern downSampledPattern = DownSampleScanPattern(_scanPattern, downSampleScale);
             
             sensor._scanPattern = downSampledPattern;
-            sensor._pointsNumPerScan = downSampledPattern.scans.Length;
+            sensor._pointsNumPerScan = Mathf.Min(downSampledPattern.scans.Length, _pointsNumPerScan);
             sensor._minRange = _minRange;
             sensor._maxRange = _maxRange;
             sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
