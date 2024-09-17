@@ -125,7 +125,7 @@ namespace ProBridge.Tx.Sensor
             if (!sensorReady)
             {
                 Debug.Log(sensor.dt);
-                throw new Exception("Sensor is not ready");
+                throw new Exception("Sensor is not ready, PC might be running too slow for the requested frequency.");
             }
             _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
             _jobHandle.Complete();
