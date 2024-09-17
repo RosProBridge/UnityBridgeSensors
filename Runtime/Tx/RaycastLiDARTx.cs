@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using Codice.CM.WorkspaceServer.DataStore.Configuration;
 using UnitySensors.Sensor.LiDAR;
 using sensor_msgs.msg;
 using Unity.Collections;
 using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 using UnitySensors.Data.PointCloud;
 
@@ -20,6 +22,7 @@ namespace ProBridge.Tx.Sensor
         public float _maxRange = 100.0f;
         public float _gaussianNoiseSigma = 0.0f;
         public float _maxIntensity = 255.0f;
+        [Range(0f, 1f)] public float downSampleScale = 0.2f;
         
         
         
@@ -34,19 +37,21 @@ namespace ProBridge.Tx.Sensor
         {
 
             sensor = gameObject.AddComponent<RaycastLiDARSensor>();
+
+            ScanPattern downSampledPattern = DownSampleScanPattern(_scanPattern, downSampleScale);
             
-            sensor._scanPattern = _scanPattern;
-            sensor._pointsNumPerScan = _scanPattern.scans.Length;
+            sensor._scanPattern = downSampledPattern;
+            sensor._pointsNumPerScan = downSampledPattern.scans.Length;
             sensor._minRange = _minRange;
             sensor._maxRange = _maxRange;
             sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
             sensor._maxIntensity = _maxIntensity;
-            sensor._frequency = 1.0f / sendRate;
+            sensor._frequency_inv = sendRate;
 
             sensor.enabled = true;
             sensor.onSensorUpdated += OnSensorUpdated;
             sensor.Init();
-            sensor.onSensorUpdated();
+            sensor.UpdateSensor();
             
             
             
@@ -81,6 +86,25 @@ namespace ProBridge.Tx.Sensor
             base.OnStart();
         }
 
+        private ScanPattern DownSampleScanPattern(ScanPattern scanPattern, float downSample)
+        {
+            var newScanPattern = Instantiate(scanPattern);
+            List<float3> newScans = new List<float3>();
+            
+            int downSampleNum = (int)(1/downSample);
+            
+            for(int i = 0; i < scanPattern.size; i += downSampleNum)
+            {
+                newScans.Add(scanPattern.scans[i]);
+            }
+            
+            newScanPattern.scans = newScans.ToArray();
+            newScanPattern.size = newScans.Count;
+            
+            return newScanPattern;
+        }
+
+
         private void OnSensorUpdated()
         {
             sensorReady = true;
@@ -100,6 +124,7 @@ namespace ProBridge.Tx.Sensor
         {
             if (!sensorReady)
             {
+                Debug.Log(sensor.dt);
                 throw new Exception("Sensor is not ready");
             }
             _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
