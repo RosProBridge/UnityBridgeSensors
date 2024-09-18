@@ -15,18 +15,15 @@ namespace ProBridge.Tx.Sensor
     // [RequireComponent(typeof(RaycastLiDARSensor))]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
-        
-        [Header("Lidar Params")]
-        public ScanPattern _scanPattern;
+        [Header("Lidar Params")] public ScanPattern _scanPattern;
         public int _pointsNumPerScan = 10000;
         public float _minRange = 0.5f;
         public float _maxRange = 100.0f;
         public float _gaussianNoiseSigma = 0.0f;
         public float _maxIntensity = 255.0f;
-        [Range(0f, 1f)] public float downSampleScale = 0.2f;
-        
-        
-        
+        [Range(0f, 1f)] public float downSampleScale = 0.5f;
+
+
         private RaycastLiDARSensor sensor;
         private IPointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
         private JobHandle _jobHandle;
@@ -36,11 +33,10 @@ namespace ProBridge.Tx.Sensor
 
         protected override void OnStart()
         {
-
             sensor = gameObject.AddComponent<RaycastLiDARSensor>();
 
-            ScanPattern downSampledPattern = DownSampleScanPattern(_scanPattern, downSampleScale);
-            
+            ScanPattern downSampledPattern = DownSampleScanPattern(_scanPattern, 1 - downSampleScale);
+
             sensor._scanPattern = downSampledPattern;
             sensor._pointsNumPerScan = Mathf.Min(downSampledPattern.scans.Length, _pointsNumPerScan);
             sensor._minRange = _minRange;
@@ -53,9 +49,8 @@ namespace ProBridge.Tx.Sensor
             sensor.onSensorUpdated += OnSensorUpdated;
             sensor.Init();
             sensor.UpdateSensor();
-            
-            
-            
+
+
             data.fields = new PointField[3];
             for (int i = 0; i < 3; i++)
             {
@@ -65,7 +60,7 @@ namespace ProBridge.Tx.Sensor
                 data.fields[i].datatype = PointField.FLOAT32;
                 data.fields[i].count = 1;
             }
-            
+
             CalculateFieldsOffset();
 
             data.is_bigendian = false;
@@ -76,14 +71,14 @@ namespace ProBridge.Tx.Sensor
             data.is_dense = true;
             data.data = new byte[data.row_step * data.height];
             tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.Persistent);
-            
+
             _pointsToPointCloud2MsgJob = new IPointsToPointCloud2MsgJob<PointXYZI>()
             {
                 points = sensor.pointCloud.points,
                 data = tempData
             };
-            
-            
+
+
             base.OnStart();
         }
 
@@ -91,17 +86,17 @@ namespace ProBridge.Tx.Sensor
         {
             var newScanPattern = Instantiate(scanPattern);
             List<float3> newScans = new List<float3>();
-            
-            int downSampleNum = (int)(1/downSample);
-            
-            for(int i = 0; i < scanPattern.size; i += downSampleNum)
+
+            int downSampleNum = (int)(1 / downSample);
+
+            for (int i = 0; i < scanPattern.size; i += downSampleNum)
             {
                 newScans.Add(scanPattern.scans[i]);
             }
-            
+
             newScanPattern.scans = newScans.ToArray();
             newScanPattern.size = newScans.Count;
-            
+
             return newScanPattern;
         }
 
@@ -127,6 +122,7 @@ namespace ProBridge.Tx.Sensor
             {
                 throw new Exception("Sensor is not ready, PC might be running too slow for the requested frequency.");
             }
+
             _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
             _jobHandle.Complete();
             _pointsToPointCloud2MsgJob.data.CopyTo(tempData);
@@ -134,7 +130,7 @@ namespace ProBridge.Tx.Sensor
             tempData.CopyTo(data.data);
 
             sensorReady = false;
-            
+
             return base.GetMsg(ts);
         }
 
@@ -143,19 +139,19 @@ namespace ProBridge.Tx.Sensor
         {
             _jobHandle.Complete();
             tempData.Dispose();
-            
+
             base.OnStop();
         }
-        
+
         private uint CalculateFieldsSize()
         {
             uint size = 0;
-            
+
             foreach (var field in data.fields)
             {
                 uint typeSize;
                 typeSize = GetTypeSize(field);
-                
+
                 size += typeSize * field.count;
             }
 
