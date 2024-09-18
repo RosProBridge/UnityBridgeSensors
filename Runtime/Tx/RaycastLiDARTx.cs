@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Codice.CM.WorkspaceServer.DataStore.Configuration;
 using UnitySensors.Sensor.LiDAR;
 using sensor_msgs.msg;
 using Unity.Collections;
@@ -12,7 +11,6 @@ using UnitySensors.Data.PointCloud;
 
 namespace ProBridge.Tx.Sensor
 {
-    // [RequireComponent(typeof(RaycastLiDARSensor))]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
         [Header("Lidar Params")] public ScanPattern _scanPattern;
@@ -120,7 +118,7 @@ namespace ProBridge.Tx.Sensor
         {
             if (!sensorReady)
             {
-                throw new Exception("Sensor is not ready, PC might be running too slow for the requested frequency.");
+                throw new Exception("Sensor is not ready");
             }
 
             _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
