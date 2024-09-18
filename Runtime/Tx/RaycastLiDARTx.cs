@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Codice.CM.WorkspaceServer.DataStore.Configuration;
 using UnitySensors.Sensor.LiDAR;
 using sensor_msgs.msg;
 using Unity.Collections;
@@ -12,7 +11,6 @@ using UnitySensors.Data.PointCloud;
 
 namespace ProBridge.Tx.Sensor
 {
-    // [RequireComponent(typeof(RaycastLiDARSensor))]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
         [Header("Lidar Params")] public ScanPattern _scanPattern;
@@ -28,7 +26,6 @@ namespace ProBridge.Tx.Sensor
         private IPointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
         private JobHandle _jobHandle;
         private NativeArray<byte> tempData;
-        private bool sensorReady = false;
 
 
         protected override void OnStart()
@@ -46,7 +43,6 @@ namespace ProBridge.Tx.Sensor
             sensor._frequency_inv = sendRate;
 
             sensor.enabled = true;
-            sensor.onSensorUpdated += OnSensorUpdated;
             sensor.Init();
             sensor.UpdateSensor();
 
@@ -100,12 +96,6 @@ namespace ProBridge.Tx.Sensor
             return newScanPattern;
         }
 
-
-        private void OnSensorUpdated()
-        {
-            sensorReady = true;
-        }
-
         private void CalculateFieldsOffset()
         {
             uint offset = 0;
@@ -118,19 +108,12 @@ namespace ProBridge.Tx.Sensor
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
         {
-            if (!sensorReady)
-            {
-                throw new Exception("Sensor is not ready, PC might be running too slow for the requested frequency.");
-            }
-
             _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
             _jobHandle.Complete();
             _pointsToPointCloud2MsgJob.data.CopyTo(tempData);
 
             tempData.CopyTo(data.data);
-
-            sensorReady = false;
-
+            
             return base.GetMsg(ts);
         }
 
