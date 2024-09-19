@@ -8,7 +8,7 @@ namespace UnitySensors.Sensor
     public abstract class UnitySensor : MonoBehaviour
     {
         [SerializeField]
-        private float _frequency = 10.0f;
+        public float _frequency = 10.0f;
 
         private float _time;
         private float _dt;
@@ -17,7 +17,7 @@ namespace UnitySensors.Sensor
         public OnSensorUpdated onSensorUpdated;
 
 
-        private float _frequency_inv;
+        public float _frequency_inv;
 
         public float dt { get => _frequency_inv; }
         public float time { get => _time; }
@@ -26,8 +26,6 @@ namespace UnitySensors.Sensor
         {
             _dt = 0.0f;
             _frequency_inv = 1.0f / _frequency;
-
-            Init();
         }
 
         protected virtual void Update()
@@ -47,8 +45,8 @@ namespace UnitySensors.Sensor
             OnSensorDestroy();
         }
 
-        protected abstract void Init();
-        protected abstract void UpdateSensor();
+        public abstract void Init();
+        public abstract void UpdateSensor();
         protected abstract void OnSensorDestroy();
     }
 }
