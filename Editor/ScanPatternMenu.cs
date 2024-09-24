@@ -291,6 +291,14 @@ public class ScanPatternMenu : EditorWindow
 
     IEnumerator DownloadPattern(string patternName)
     {
+        string localFolderPath = Path.Combine(Application.dataPath, "ScanPatterns");
+
+        if (!Directory.Exists(localFolderPath))
+        {
+            Directory.CreateDirectory(localFolderPath);
+        }
+        
+        
         string url = _patternsRepoDict[patternName];
         Debug.Log($"Downloading {patternName} from {url}...");
 
