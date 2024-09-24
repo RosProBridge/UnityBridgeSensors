@@ -1,7 +1,11 @@
 {
     "name": "ARS.ProBridgeSensors.Editor",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "GUID:140f8b606b5974d45a0179759410a664",
+        "GUID:d8b63aba1907145bea998dd612889d6b",
+        "GUID:478a2357cc57436488a56e564b08d223"
+    ],
     "includePlatforms": [
         "Editor"
     ],
