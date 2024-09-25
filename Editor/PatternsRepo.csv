@@ -1,0 +1,12 @@
+Avia,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Livox/Avia.asset
+HAP,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Livox/HAP.asset
+Horizon,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Livox/Horizon.asset
+Mid-360,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Livox/Mid-360.asset
+Mid-40,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Livox/Mid-40.asset
+Mid-70,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Livox/Mid-70.asset
+Tele-15,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Livox/Tele-15.asset
+HDL-32E,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Velodyne/HDL-32E.asset
+VLP-16,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Velodyne/VLP-16.asset
+VLP-16HiRes,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Velodyne/VLP-16HiRes.asset
+VLP-32,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Velodyne/VLP-32.asset
+VLS-128,https://raw.githubusercontent.com/RosProBridge/SensorFiles/refs/heads/main/ScanPatterns/Velodyne/VLS-128.asset
