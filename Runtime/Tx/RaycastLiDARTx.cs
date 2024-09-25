@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnitySensors.Sensor.LiDAR;
 using sensor_msgs.msg;
 using Unity.Collections;
@@ -26,6 +27,7 @@ namespace ProBridge.Tx.Sensor
         private IPointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
         private JobHandle _jobHandle;
         private NativeArray<byte> tempData;
+        private NativeArray<PointXYZI> reducedPoints;
         private bool sensorReady = false;
 
 
@@ -62,20 +64,9 @@ namespace ProBridge.Tx.Sensor
             CalculateFieldsOffset();
 
             data.is_bigendian = false;
-            data.width = (uint)sensor.pointsNum;
             data.height = 1;
             data.point_step = CalculateFieldsSize();
-            data.row_step = data.width * data.point_step;
             data.is_dense = true;
-            data.data = new byte[data.row_step * data.height];
-            tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.Persistent);
-
-            _pointsToPointCloud2MsgJob = new IPointsToPointCloud2MsgJob<PointXYZI>()
-            {
-                points = sensor.pointCloud.points,
-                data = tempData
-            };
-
 
             base.OnStart();
         }
@@ -121,13 +112,35 @@ namespace ProBridge.Tx.Sensor
                 throw new Exception("Sensor is not ready");
             }
 
-            _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
+            var zeroCount = sensor.pointCloud.points.Count(point => point.position is { x: 0, y: 0, z: 0 });
+
+            reducedPoints = new NativeArray<PointXYZI>(
+                sensor.pointCloud.points
+                    .Where(point => point.position is not { x: 0, y: 0, z: 0 }).ToArray(),
+                Allocator.TempJob);
+
+            data.width = (uint)reducedPoints.Length;
+            data.row_step = data.width * data.point_step;
+            data.data = new byte[data.row_step * data.height];
+            tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.TempJob);
+
+            _pointsToPointCloud2MsgJob = new IPointsToPointCloud2MsgJob<PointXYZI>()
+            {
+                points = reducedPoints,
+                data = tempData
+            };
+
+
+            _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum - zeroCount, 12);
             _jobHandle.Complete();
             _pointsToPointCloud2MsgJob.data.CopyTo(tempData);
-
+            
             tempData.CopyTo(data.data);
 
             sensorReady = false;
+
+            reducedPoints.Dispose();
+            tempData.Dispose();
 
             return base.GetMsg(ts);
         }
