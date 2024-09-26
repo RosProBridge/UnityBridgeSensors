@@ -22,6 +22,8 @@ namespace ProBridge.Tx.Sensor
         public Camera renderCamera;
         public int textureWidth = 1024;
         public int textureHeight = 1024;
+        [Range(1, 100)]
+        public uint CompressionQuality = 90;
         private RenderTexture renderTexture;
         private Texture2D texture2D;
         private bool gotFirstFrame = false;
@@ -59,7 +61,7 @@ namespace ProBridge.Tx.Sensor
                 {
                     Format.jpeg => compressor.Compress(texture2D.GetRawTextureData(), texture2D.width * 4,
                         texture2D.width,
-                        texture2D.height, TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance420, 90, TJFlags.None),
+                        texture2D.height, TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance420, (int)CompressionQuality, TJFlags.None),
                     Format.png => texture2D.EncodeToPNG(),
                     _ => data.data
                 };
