@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections;
+using System.Threading;
 using sensor_msgs.msg;
 using TurboJpegWrapper;
 using Unity.Collections;
@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 namespace ProBridge.Tx.Sensor
 {
     [AddComponentMenu("ProBridge/Sensors/Tx/CompressedImage")]
-    public class CompresedImageTx : ProBridgeTxStamped<CompressedImage>
+    public class CompressedImageTx : ProBridgeTxStamped<CompressedImage>
     {
         public enum Format
         {
@@ -17,19 +17,30 @@ namespace ProBridge.Tx.Sensor
             png
         }
 
-        public Format format = Format.jpeg;
+        #region Inspector
 
+        public Format format = Format.jpeg;
         public Camera renderCamera;
         public int textureWidth = 1024;
         public int textureHeight = 1024;
-        [Range(1, 100)]
-        public uint CompressionQuality = 90;
+        [Range(1, 100)] public uint CompressionQuality = 90;
+
+        #endregion
+
+
+        [HideInInspector] public float frameRate;
+
+
         private RenderTexture renderTexture;
         private Texture2D texture2D;
-        private bool gotFirstFrame = false;
         private TJCompressor compressor;
-        private bool newFrame = false;
+        private bool newFrameAvailable;
         private NativeArray<Color32> imageData;
+
+        private byte[] rawTextureData;
+        private Thread jpegCompressionThread;
+        
+        private DateTime lastRenderTime;
 
         protected override void OnStart()
         {
@@ -40,14 +51,18 @@ namespace ProBridge.Tx.Sensor
 
             texture2D = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false);
             compressor = new TJCompressor();
+            lastRenderTime = DateTime.Now;
 
             InvokeRepeating(nameof(RenderLoop), 0, sendRate);
+
+            if (format != Format.jpeg) return;
+            jpegCompressionThread = new Thread(JpegCompressor);
+            jpegCompressionThread.Start();
         }
 
         void RenderLoop()
         {
             renderCamera.Render();
-
             AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGBA32, OnCompleteReadback);
         }
 
@@ -55,46 +70,72 @@ namespace ProBridge.Tx.Sensor
         {
             data.format = format.ToString();
 
-            if (gotFirstFrame)
+            if (format == Format.png && newFrameAvailable)
             {
-                data.data = format switch
-                {
-                    Format.jpeg => compressor.Compress(texture2D.GetRawTextureData(), texture2D.width * 4,
-                        texture2D.width,
-                        texture2D.height, TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance420, (int)CompressionQuality, TJFlags.None),
-                    Format.png => texture2D.EncodeToPNG(),
-                    _ => data.data
-                };
-                newFrame = false;
+                // TODO: optimize png encoding
+                data.data = texture2D.EncodeToPNG();
+                newFrameAvailable = false;
+
+                UpdateFrameRate();
             }
-            else
-                data.data = new byte[] { 0, 0, 0, 255 };
+
+            data.data ??= new byte[] { 0, 0, 0, 255 };
 
             return base.GetMsg(ts);
         }
 
-        void OnCompleteReadback(AsyncGPUReadbackRequest request)
+        private void OnCompleteReadback(AsyncGPUReadbackRequest request)
         {
             if (request.hasError)
             {
-                Debug.LogError("GPU readback error detected.");
+                Debug.LogError("GPU read-back error detected.");
                 return;
             }
 
             if (texture2D == null) return;
-
+            
             imageData = request.GetData<Color32>();
-
             texture2D.LoadRawTextureData(imageData);
             texture2D.Apply();
 
-            gotFirstFrame = true;
-            newFrame = true;
+            if (format == Format.jpeg)
+            {
+                rawTextureData = texture2D.GetRawTextureData();
+            }
 
+            newFrameAvailable = true;
         }
 
 
-        void OnDestroy()
+        private void JpegCompressor()
+        {
+            while (true)
+            {
+                if (newFrameAvailable)
+                {
+                    data.data = compressor.Compress(rawTextureData, textureWidth * 4,
+                        textureWidth,
+                        textureHeight, TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance420,
+                        (int)CompressionQuality,
+                        TJFlags.FastDct);
+
+                    newFrameAvailable = false;
+
+                    UpdateFrameRate();
+                }
+
+                Thread.Sleep((int)sendRate * 1000);
+            }
+        }
+
+        private void UpdateFrameRate()
+        {
+            frameRate = (float)(1 / (DateTime.Now - lastRenderTime).TotalSeconds);
+            lastRenderTime = DateTime.Now;
+        }
+
+
+        private void OnDestroy()
         {
             if (renderTexture != null)
             {
@@ -105,7 +146,11 @@ namespace ProBridge.Tx.Sensor
             {
                 Destroy(texture2D);
             }
+
+            if (format == Format.jpeg)
+            {
+                jpegCompressionThread.Abort();
+            }
         }
     }
-    
 }
