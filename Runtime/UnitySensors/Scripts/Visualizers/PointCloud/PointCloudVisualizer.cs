@@ -76,7 +76,7 @@ namespace UnitySensors.Visualization.PointCloud
             _cachedPointsCount = sensor.pointsNum;
         }
 
-        private void OnDisable()
+        private void OnDestroy()
         {
             if (_pointsBuffer != null) _pointsBuffer.Release();
             _pointsBuffer = null;
