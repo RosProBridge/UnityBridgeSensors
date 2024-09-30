@@ -117,7 +117,7 @@ namespace ProBridge.Tx.Sensor
                         textureWidth,
                         textureHeight, TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance420,
                         (int)CompressionQuality,
-                        TJFlags.FastDct);
+                        TJFlags.FastDct | TJFlags.BottomUp);
 
                     newFrameAvailable = false;
 
