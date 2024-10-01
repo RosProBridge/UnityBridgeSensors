@@ -89,7 +89,7 @@ namespace ProBridge.Tx.Sensor
             if (Math.Abs(maxAzimuth - 360f) < ANGLE_TOLERANCE && minAzimuth == 0f) return scanPattern;
             
             var newScans = (from scan in scanPattern.scans
-                let azimuth = Mathf.Atan2(scan.x, scan.z) * Mathf.Rad2Deg + 180f
+                let azimuth = Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f
                 where azimuth >= minAzimuth && azimuth <= maxAzimuth
                 select scan).ToList();
 
