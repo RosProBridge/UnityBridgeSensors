@@ -12,6 +12,7 @@ using UnitySensors.Data.PointCloud;
 
 namespace ProBridge.Tx.Sensor
 {
+    [AddComponentMenu("ProBridge/Tx/Sensors/RaycastLiDAR")]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
         [Header("Lidar Params")] public ScanPattern _scanPattern;
@@ -26,7 +27,7 @@ namespace ProBridge.Tx.Sensor
 
 
         private RaycastLiDARSensor sensor;
-        private IPointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
+        private PointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
         private JobHandle _jobHandle;
         private NativeArray<byte> tempData;
         private bool sensorReady = false;
@@ -74,7 +75,7 @@ namespace ProBridge.Tx.Sensor
             data.data = new byte[data.row_step * data.height];
             tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.Persistent);
 
-            _pointsToPointCloud2MsgJob = new IPointsToPointCloud2MsgJob<PointXYZI>()
+            _pointsToPointCloud2MsgJob = new PointsToPointCloud2MsgJob<PointXYZI>()
             {
                 points = sensor.pointCloud.points,
                 data = tempData
