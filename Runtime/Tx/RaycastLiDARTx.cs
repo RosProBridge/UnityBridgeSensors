@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnitySensors.Sensor.LiDAR;
 using sensor_msgs.msg;
 using Unity.Collections;
@@ -19,6 +20,8 @@ namespace ProBridge.Tx.Sensor
         public float _maxRange = 100.0f;
         public float _gaussianNoiseSigma = 0.0f;
         public float _maxIntensity = 255.0f;
+        public float minAzimuthAngle = 0;
+        public float maxAzimuthAngle = 360f;
         [Range(0f, 1f)] public float downSampleScale = 0.5f;
 
 
@@ -33,10 +36,11 @@ namespace ProBridge.Tx.Sensor
         {
             sensor = gameObject.AddComponent<RaycastLiDARSensor>();
 
-            ScanPattern downSampledPattern = DownSampleScanPattern(_scanPattern, 1 - downSampleScale);
+            var processedScanPattern = DownSampleScanPattern(_scanPattern, 1 - downSampleScale);
+            processedScanPattern = ReduceScanPatternAngle(processedScanPattern, minAzimuthAngle, maxAzimuthAngle);
 
-            sensor._scanPattern = downSampledPattern;
-            sensor._pointsNumPerScan = Mathf.Min(downSampledPattern.scans.Length, _pointsNumPerScan);
+            sensor._scanPattern = processedScanPattern;
+            sensor._pointsNumPerScan = Mathf.Min(processedScanPattern.scans.Length, _pointsNumPerScan);
             sensor._minRange = _minRange;
             sensor._maxRange = _maxRange;
             sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
@@ -79,6 +83,23 @@ namespace ProBridge.Tx.Sensor
 
             base.OnStart();
         }
+
+        private ScanPattern ReduceScanPatternAngle(ScanPattern scanPattern, float minAzimuth, float maxAzimuth)
+        {
+            if (Math.Abs(maxAzimuth - 360f) < ANGLE_TOLERANCE && minAzimuth == 0f) return scanPattern;
+            
+            var newScans = (from scan in scanPattern.scans
+                let azimuth = Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f
+                where azimuth >= minAzimuth && azimuth <= maxAzimuth
+                select scan).ToList();
+
+            var newScanPattern = Instantiate(scanPattern);
+            newScanPattern.scans = newScans.ToArray();
+            newScanPattern.size = newScans.Count;
+            return newScanPattern;
+        }
+
+        private const double ANGLE_TOLERANCE = 0.001;
 
         private ScanPattern DownSampleScanPattern(ScanPattern scanPattern, float downSample)
         {
