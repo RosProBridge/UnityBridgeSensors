@@ -12,7 +12,7 @@ using UnitySensors.Data.PointCloud;
 
 namespace ProBridge.Tx.Sensor
 {
-    [AddComponentMenu("ProBridge/Tx/Sensors/RaycastLiDAR")]
+    [AddComponentMenu("ProBridge/Tx/sensor_msgs/RaycastLiDAR")]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
         [Header("Lidar Params")] public ScanPattern _scanPattern;

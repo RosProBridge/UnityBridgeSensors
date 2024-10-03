@@ -19,7 +19,7 @@ using UnityEngine;
 
 namespace ProBridge.Tx.Sensor
 {
-    [AddComponentMenu("ProBridge/Tx/Sensors/CameraInfo")]
+    [AddComponentMenu("ProBridge/Tx/sensor_msgs/CameraInfo")]
     public class CameraInfoTx : ProBridgeTxStamped<CameraInfo>
     {
         //The default Camera Info distortion model.

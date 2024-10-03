@@ -6,7 +6,7 @@ using sensor_msgs.msg;
 
 namespace ProBridgeSenors.Tx
 {
-    [AddComponentMenu("ProBridge/Tx/Sensors/Imu")]
+    [AddComponentMenu("ProBridge/Tx/sensor_msgs/Imu")]
     [RequireComponent(typeof(Rigidbody))]
     public class ImuTx : ProBridgeTxStamped<Imu>
     {
