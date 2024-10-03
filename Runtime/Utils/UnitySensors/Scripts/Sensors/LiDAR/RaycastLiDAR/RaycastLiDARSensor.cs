@@ -15,6 +15,7 @@ using Random = Unity.Mathematics.Random;
 
 namespace UnitySensors.Sensor.LiDAR
 {
+    [AddComponentMenu("")]
     public class RaycastLiDARSensor : LiDARSensor<PointXYZI>
     {
         private Transform _transform;
