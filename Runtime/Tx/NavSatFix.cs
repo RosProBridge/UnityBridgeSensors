@@ -20,9 +20,15 @@ namespace ProBridge.Tx.Sensor
         protected override void OnStart()
         {
             startPos = transform.position;
+            UpdateLLA();
         }
 
         private void Update()
+        {
+            UpdateLLA();
+        }
+
+        private void UpdateLLA()
         {
             double la = startLLA.x;
             double lo = startLLA.y;
