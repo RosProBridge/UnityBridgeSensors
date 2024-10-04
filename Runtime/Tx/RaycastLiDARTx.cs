@@ -27,8 +27,12 @@ namespace ProBridge.Tx.Sensor
 
         private RaycastLiDARSensor sensor;
         private IPointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
+        private FilterZeroPointsParallelJob _zeroFilterJob;
         private JobHandle _jobHandle;
         private NativeArray<byte> tempData;
+        NativeQueue<PointXYZI> tempQueue; 
+        NativeQueue<PointXYZI>.ParallelWriter tempQueueWriter;
+        NativeArray<PointXYZI> tempPointsInput;
         private bool sensorReady = false;
 
 
@@ -64,21 +68,6 @@ namespace ProBridge.Tx.Sensor
             }
 
             CalculateFieldsOffset();
-
-            data.is_bigendian = false;
-            data.width = (uint)sensor.pointsNum;
-            data.height = 1;
-            data.point_step = CalculateFieldsSize();
-            data.row_step = data.width * data.point_step;
-            data.is_dense = true;
-            data.data = new byte[data.row_step * data.height];
-            tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.Persistent);
-
-            _pointsToPointCloud2MsgJob = new IPointsToPointCloud2MsgJob<PointXYZI>()
-            {
-                points = sensor.pointCloud.points,
-                data = tempData
-            };
 
 
             base.OnStart();
@@ -141,14 +130,47 @@ namespace ProBridge.Tx.Sensor
             {
                 throw new Exception("Sensor is not ready");
             }
+            
+            tempQueue = new NativeQueue<PointXYZI>(Allocator.TempJob);
+            tempQueueWriter = tempQueue.AsParallelWriter();
 
-            _jobHandle = _pointsToPointCloud2MsgJob.Schedule(sensor.pointsNum, 12);
+            _zeroFilterJob = new FilterZeroPointsParallelJob()
+            {
+                inputArray = sensor.pointCloud.points,
+                outputQueue = tempQueueWriter
+            };
+            
+            _zeroFilterJob.Schedule(sensor.pointsNum, 12).Complete();
+            
+            data.is_bigendian = false;
+            data.width = (uint)tempQueue.Count;
+            data.height = 1;
+            data.point_step = CalculateFieldsSize();
+            data.row_step = data.width * data.point_step;
+            data.is_dense = true;
+            data.data = new byte[data.row_step * data.height];
+            tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.TempJob);
+            tempPointsInput = tempQueue.ToArray(Allocator.TempJob);
+            _pointsToPointCloud2MsgJob = new IPointsToPointCloud2MsgJob<PointXYZI>()
+            {
+                points = tempPointsInput,
+                data = tempData
+            };
+
+            _jobHandle = _pointsToPointCloud2MsgJob.Schedule(tempQueue.Count, 12);
             _jobHandle.Complete();
             _pointsToPointCloud2MsgJob.data.CopyTo(tempData);
 
             tempData.CopyTo(data.data);
 
             sensorReady = false;
+            
+            _jobHandle.Complete();
+            
+            
+            tempQueue.Dispose();
+            tempData.Dispose();
+            tempPointsInput.Dispose();
 
             return base.GetMsg(ts);
         }
@@ -157,7 +179,6 @@ namespace ProBridge.Tx.Sensor
         protected override void OnStop()
         {
             _jobHandle.Complete();
-            tempData.Dispose();
 
             base.OnStop();
         }
