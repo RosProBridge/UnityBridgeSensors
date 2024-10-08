@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 
 namespace ProBridge.Tx.Sensor
 {
-    [AddComponentMenu("ProBridge/Sensors/Tx/CompressedImage")]
+    [AddComponentMenu("ProBridge/Tx/sensor_msgs/CompressedImage")]
     public class CompressedImageTx : ProBridgeTxStamped<CompressedImage>
     {
         public enum Format

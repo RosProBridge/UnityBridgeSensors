@@ -1,17 +1,16 @@
 using System;
 using UnityEngine;
 using ProBridge.Utils;
+using sensor_msgs.msg;
 
 namespace ProBridge.Tx.Sensor
 {
-    [AddComponentMenu("ProBridge/Tx/Sensor/NavSatFix")]
-    public class NavSatFix : ProBridgeTxStamped<sensor_msgs.msg.NavSatFix>
+    [AddComponentMenu("ProBridge/Tx/sensor_msgs/NavSatFix")]
+    public class NavSatFixTx : ProBridgeTxStamped<NavSatFix>
     {
-        [Header("Params")]
-        public Vector3 startLLA = new Vector3();
+        [Header("Params")] public Vector3 startLLA = new Vector3();
 
-        [Header("Values")]
-        public double latitude;
+        [Header("Values")] public double latitude;
         public double longitude;
         public double altitude;
 
@@ -20,9 +19,15 @@ namespace ProBridge.Tx.Sensor
         protected override void OnStart()
         {
             startPos = transform.position;
+            UpdateLLA();
         }
 
         private void Update()
+        {
+            UpdateLLA();
+        }
+
+        private void UpdateLLA()
         {
             double la = startLLA.x;
             double lo = startLLA.y;

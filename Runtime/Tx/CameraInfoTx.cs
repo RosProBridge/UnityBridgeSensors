@@ -1,12 +1,12 @@
 ﻿/*
- * Portions of this code are derived from the ROS-TCP-Connector project, 
+ * Portions of this code are derived from the ROS-TCP-Connector project,
  * originally developed by Unity Technologies and licensed under the Apache License 2.0.
- * 
+ *
  * Modifications have been made to adapt it for use in this project.
- * 
+ *
  * You can view the original code and license at:
  * https://github.com/Unity-Technologies/ROS-TCP-Connector
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
@@ -19,7 +19,7 @@ using UnityEngine;
 
 namespace ProBridge.Tx.Sensor
 {
-    [AddComponentMenu("ProBridge/Sensors/Tx/CameraInfo")]
+    [AddComponentMenu("ProBridge/Tx/sensor_msgs/CameraInfo")]
     public class CameraInfoTx : ProBridgeTxStamped<CameraInfo>
     {
         //The default Camera Info distortion model.
@@ -27,7 +27,7 @@ namespace ProBridge.Tx.Sensor
 
 
         public Camera camera;
-        
+
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
         {
             ConstructCameraInfoMessage(camera);

@@ -2,13 +2,13 @@ using System;
 using UnityEngine;
 using ProBridge.Tx;
 using ProBridge.Utils;
-using ProBridge;
+using sensor_msgs.msg;
 
 namespace ProBridgeSenors.Tx
 {
-    [AddComponentMenu("ProBridge/Tx/Sensor/Imu")]
+    [AddComponentMenu("ProBridge/Tx/sensor_msgs/Imu")]
     [RequireComponent(typeof(Rigidbody))]
-    public class Imu : ProBridgeTxStamped<sensor_msgs.msg.Imu>
+    public class ImuTx : ProBridgeTxStamped<Imu>
     {
         public Rigidbody Body { get; private set; }
         public Vector3 Acceleration { get; private set; }
