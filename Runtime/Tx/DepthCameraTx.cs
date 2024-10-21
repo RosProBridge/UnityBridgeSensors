@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnitySensors.Sensor.Camera;
 
+[AddComponentMenu("ProBridge/Tx/sensor_msgs/Depth Camera")]
 public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
 {
     public Camera renderCamera;
