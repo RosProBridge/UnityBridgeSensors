@@ -27,7 +27,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
 
     protected override void OnStart()
     {
-        _cameraSensor = gameObject.AddComponent<DepthCameraSensor>();
+        _cameraSensor = renderCamera.gameObject.AddComponent<DepthCameraSensor>();
         _cameraSensor._camera = renderCamera;
         _cameraSensor.onSensorUpdated += OnSensorUpdated;
         _cameraSensor._minRange = _minRange;

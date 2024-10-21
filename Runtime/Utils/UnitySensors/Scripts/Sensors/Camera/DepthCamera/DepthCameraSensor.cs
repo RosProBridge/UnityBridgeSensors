@@ -13,7 +13,7 @@ using Random = Unity.Mathematics.Random;
 
 namespace UnitySensors.Sensor.Camera
 {
-    [RequireComponent(typeof(UnityEngine.Camera))]
+    [AddComponentMenu("")]
     public class DepthCameraSensor : CameraSensor, ITextureInterface, IPointCloudInterface<PointXYZ>
     {
         [SerializeField]
@@ -51,7 +51,6 @@ namespace UnitySensors.Sensor.Camera
 
         public override void Init()
         {
-            _camera = GetComponent<UnityEngine.Camera>();
             _camera.fieldOfView = _fov;
             _camera.nearClipPlane = _minRange;
             _camera.farClipPlane = _maxRange;
