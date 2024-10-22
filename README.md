@@ -18,7 +18,7 @@ Unity ProBridge Sensors is a plugin for [Unity ProBridge](https://github.com/Ros
 Before you begin, ensure you have the following:
 
 - Git installed on your computer.
-- Unity Editor 2018.4 or later installed and ready to use.
+- Unity Editor 2021.3 or later installed and ready to use.
 - [UnityProBridge](https://github.com/RosProBridge/UnityBridge) Installed.
 
 ### 1. Accessing Package Manager in Unity
