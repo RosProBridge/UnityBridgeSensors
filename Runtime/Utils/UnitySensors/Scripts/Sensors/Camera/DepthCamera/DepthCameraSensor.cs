@@ -98,13 +98,22 @@ namespace UnitySensors.Sensor.Camera
             };
 
             _noises = new NativeArray<float>(pointsNum, Allocator.Persistent);
-
-            _updateGaussianNoisesJob = new IUpdateGaussianNoisesJob()
+            if(_gaussianNoiseSigma==0f)
             {
-                sigma = _gaussianNoiseSigma,
-                random = new Random((uint)Environment.TickCount),
-                noises = _noises
-            };
+                for (int i = 0; i < pointsNum; i++)
+                {
+                    _noises[i] = 0f;
+                }
+            }
+            else
+            {
+                _updateGaussianNoisesJob = new IUpdateGaussianNoisesJob()
+                {
+                    sigma = _gaussianNoiseSigma,
+                    random = new Random((uint)Environment.TickCount),
+                    noises = _noises
+                };
+            }
 
             _textureToPointsJob = new ITextureToPointsJob()
             {
@@ -120,11 +129,19 @@ namespace UnitySensors.Sensor.Camera
         {
             if (!LoadTexture()) return;
 
-            JobHandle updateGaussianNoisesJobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
+            JobHandle jobHandle = default;
+
+            if (_gaussianNoiseSigma != 0f)
+            {
+                jobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
+            }
+
             _textureToPointsJob.depthPixels = _texture.GetPixelData<Color>(0);
-            _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, updateGaussianNoisesJobHandle);
+            _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, jobHandle);
+
             JobHandle.ScheduleBatchedJobs();
             _jobHandle.Complete();
+
 
             if (onSensorUpdated != null)
                 onSensorUpdated.Invoke();
