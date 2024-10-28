@@ -13,23 +13,32 @@ namespace ProBridgeSenors.Tx
         public Rigidbody Body { get; private set; }
         public Vector3 Acceleration { get; private set; }
 
-        private Vector3 _lastVel;
+        public bool isNedImu;
+        private Vector3 _lastVel = new Vector3(0,0,0);
         private Vector3 gravityDirection;
         private float gravityMagnitude;
-        private Transform transform;
+        private Transform initTransform;
+
 
         protected override void OnStart()
         {
             Body = GetComponent<Rigidbody>();
             gravityDirection = Physics.gravity.normalized;
             gravityMagnitude = Physics.gravity.magnitude;
-            transform = this.transform;
-        }
+            initTransform = this.transform;
 
+        }
         void FixedUpdate()
         {
-            Acceleration = (Body.velocity - _lastVel) / Time.deltaTime -
-                           transform.InverseTransformDirection(gravityDirection) * gravityMagnitude;
+            if (isNedImu)
+            {
+                Acceleration = (Body.velocity - _lastVel) / Time.deltaTime - initTransform.InverseTransformDirection(gravityDirection) * gravityMagnitude;
+
+            }
+            else
+            {
+                Acceleration = (Body.velocity - _lastVel) / Time.deltaTime;
+            }
             _lastVel = Body.velocity;
         }
 
