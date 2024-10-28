@@ -13,6 +13,7 @@ namespace ProBridge.Tx.Sensor
         public double startAltitude;
 
         [Header("Noise Parameters")]
+        public bool applyNoise = false;
         public float latitudeNoiseStdDev = 0.00001f;  // 0.00001 degrees, which is about 1.11 meters of noise
         public float longitudeNoiseStdDev = 0.00001f;  // 0.00001 degrees, which is about 1.11 meters of noise
         public float altitudeNoiseStdDev = 5.0f; // 5 meters standard deviation for altitude noise
@@ -24,7 +25,7 @@ namespace ProBridge.Tx.Sensor
 
 
         private Vector3 startPos;
-        private System.Random random = new System.Random(); 
+        private System.Random random = new System.Random();
 
         protected override void OnStart()
         {
@@ -44,10 +45,15 @@ namespace ProBridge.Tx.Sensor
             double al = startAltitude;
 
             GeoConverter.Local2Global(transform.position - startPos, ref la, ref lo, ref al);
-
-            latitude = la + GenerateGaussianNoise(latitudeNoiseStdDev);
-            longitude = lo + GenerateGaussianNoise(longitudeNoiseStdDev);
-            altitude = al + GenerateGaussianNoise(altitudeNoiseStdDev);
+            latitude = la;
+            longitude = lo;
+            altitude = al;
+            if (applyNoise)
+            {
+                latitude += GenerateGaussianNoise(latitudeNoiseStdDev);
+                longitude += GenerateGaussianNoise(longitudeNoiseStdDev);
+                altitude += GenerateGaussianNoise(altitudeNoiseStdDev);
+            }
         }
 
         // Generate Gaussian noise using the Box-Muller transform
