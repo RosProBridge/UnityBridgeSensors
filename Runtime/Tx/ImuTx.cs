@@ -7,10 +7,10 @@ using sensor_msgs.msg;
 namespace ProBridgeSenors.Tx
 {
     [AddComponentMenu("ProBridge/Tx/sensor_msgs/Imu")]
-    [RequireComponent(typeof(Rigidbody))]
     public class ImuTx : ProBridgeTxStamped<Imu>
     {
-        public Rigidbody Body { get; private set; }
+        public Rigidbody Rigidbody { get; private set; }
+        public ArticulationBody ArticulationBody { get; private set; }
         public Vector3 Acceleration { get; private set; }
 
         public bool isNedImu;
@@ -22,7 +22,16 @@ namespace ProBridgeSenors.Tx
 
         protected override void OnStart()
         {
-            Body = GetComponent<Rigidbody>();
+            Rigidbody = GetComponent<Rigidbody>();
+            if (Rigidbody == null)
+            {
+                ArticulationBody = GetComponent<ArticulationBody>();
+                if (ArticulationBody == null)
+                {
+                    Debug.LogWarning("No Articulation Body or Rigidbody found");
+                    throw new NullReferenceException("No Articulation Body or Rigidbody found");
+                }
+            }
             gravityDirection = Physics.gravity.normalized;
             gravityMagnitude = Physics.gravity.magnitude;
             initTransform = this.transform;
@@ -30,24 +39,27 @@ namespace ProBridgeSenors.Tx
         }
         void FixedUpdate()
         {
+            var velocity = Rigidbody==null ? ArticulationBody.velocity : Rigidbody.velocity;
             if (isNedImu)
             {
-                Acceleration = (Body.velocity - _lastVel) / Time.deltaTime - initTransform.InverseTransformDirection(gravityDirection) * gravityMagnitude;
+                Acceleration = (velocity - _lastVel) / Time.deltaTime - initTransform.InverseTransformDirection(gravityDirection) * gravityMagnitude;
 
             }
             else
             {
-                Acceleration = (Body.velocity - _lastVel) / Time.deltaTime;
+                Acceleration = (velocity - _lastVel) / Time.deltaTime;
             }
-            _lastVel = Body.velocity;
+            _lastVel = velocity;
         }
 
 
         protected override ProBridge.ProBridge.Msg GetMsg(TimeSpan ts)
         {
-            data.angular_velocity = (Quaternion.Inverse(Body.rotation) * Body.angularVelocity).ToRosAngular();
+            var angularVelocity = Rigidbody==null? ArticulationBody.angularVelocity : Rigidbody.angularVelocity;
+            
+            data.angular_velocity = (Quaternion.Inverse(transform.rotation) * angularVelocity).ToRosAngular();
             data.linear_acceleration = Acceleration.ToRos();
-            data.orientation = Body.rotation.ToRos();
+            data.orientation = transform.rotation.ToRos();
 
             return base.GetMsg(ts);
         }
