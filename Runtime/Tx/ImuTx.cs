@@ -18,10 +18,13 @@ namespace ProBridgeSenors.Tx
         private Vector3 _velocity;
         private Vector3 _angularVelocity;
         private bool _isGlobal;
-
+        private Vector3 _gravityDirection;
+        private float _gravityMagnitude;
 
         protected override void OnStart()
         {
+            _gravityDirection = Physics.gravity.normalized;
+            _gravityMagnitude = Physics.gravity.magnitude;
             _lastPosition = transform.position;
             _lastRotation = transform.rotation;
         }
@@ -37,7 +40,7 @@ namespace ProBridgeSenors.Tx
             _lastPosition = transform.position;
             _lastRotation = transform.rotation;
 
-            acceleration = (_velocity - _lastVel) / Time.deltaTime;
+            acceleration = (_velocity - _lastVel) / Time.deltaTime - transform.InverseTransformDirection(_gravityDirection) * _gravityMagnitude;;
 
             if (!_isGlobal)
             {
@@ -47,8 +50,6 @@ namespace ProBridgeSenors.Tx
 
             _lastVel = _velocity;
         }
-
-
         protected override ProBridge.ProBridge.Msg GetMsg(TimeSpan ts)
         {
             data.angular_velocity = _angularVelocity.ToRos();
