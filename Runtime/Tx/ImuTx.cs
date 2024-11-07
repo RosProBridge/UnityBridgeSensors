@@ -40,7 +40,7 @@ namespace ProBridgeSenors.Tx
             _lastPosition = transform.position;
             _lastRotation = transform.rotation;
 
-            acceleration = (_velocity - _lastVel) / Time.deltaTime - transform.InverseTransformDirection(_gravityDirection) * _gravityMagnitude;;
+            acceleration = (_velocity - _lastVel) / Time.fixedDeltaTime - transform.InverseTransformDirection(_gravityDirection) * _gravityMagnitude;;
 
             if (!_isGlobal)
             {
