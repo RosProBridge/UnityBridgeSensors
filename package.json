@@ -1,6 +1,6 @@
 {
   "name": "com.ars.probridge-sensors",
-  "version": "1.4.9",
+  "version": "1.4.10",
   "displayName": "ProBridgeSensors",
   "description": "ProBridge plugin for sensors implementation",
   "unity": "2018.4",
