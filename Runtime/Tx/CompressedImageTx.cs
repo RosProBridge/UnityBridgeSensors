@@ -39,7 +39,7 @@ namespace ProBridge.Tx.Sensor
 
         private byte[] rawTextureData;
         private Thread jpegCompressionThread;
-        
+
         private DateTime lastRenderTime;
 
         protected override void OnStart()
@@ -49,7 +49,7 @@ namespace ProBridge.Tx.Sensor
 
             renderCamera.targetTexture = renderTexture;
 
-            texture2D = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false);
+            texture2D = new Texture2D(textureWidth, textureHeight, TextureFormat.RGB24, false);
             compressor = new TJCompressor();
             lastRenderTime = DateTime.Now;
 
@@ -63,7 +63,7 @@ namespace ProBridge.Tx.Sensor
         void RenderLoop()
         {
             renderCamera.Render();
-            AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGBA32, OnCompleteReadback);
+            AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGB24, OnCompleteReadback);
         }
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
@@ -79,7 +79,7 @@ namespace ProBridge.Tx.Sensor
                 UpdateFrameRate();
             }
 
-            data.data ??= new byte[] { 0, 0, 0, 255 };
+            data.data ??= new byte[] { 0, 0, 0};
 
             return base.GetMsg(ts);
         }
@@ -93,7 +93,7 @@ namespace ProBridge.Tx.Sensor
             }
 
             if (texture2D == null) return;
-            
+
             imageData = request.GetData<Color32>();
             texture2D.LoadRawTextureData(imageData);
             texture2D.Apply();
@@ -113,9 +113,9 @@ namespace ProBridge.Tx.Sensor
             {
                 if (newFrameAvailable)
                 {
-                    data.data = compressor.Compress(rawTextureData, textureWidth * 4,
+                    data.data = compressor.Compress(rawTextureData, 0,
                         textureWidth,
-                        textureHeight, TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance420,
+                        textureHeight, TJPixelFormat.RGB, TJSubsamplingOption.Chrominance420,
                         (int)CompressionQuality,
                         TJFlags.FastDct | TJFlags.BottomUp);
 
