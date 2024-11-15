@@ -44,10 +44,25 @@ namespace ProBridge.Tx.Sensor
 
         protected override void OnStart()
         {
-            renderTexture = new RenderTexture(textureWidth, textureHeight, 24, RenderTextureFormat.ARGB32);
-            renderTexture.Create();
+            if (renderCamera.targetTexture == null)
+            {
+                renderTexture = new RenderTexture(textureWidth, textureHeight, 24, RenderTextureFormat.ARGB32);
+                renderTexture.Create();
+                renderCamera.targetTexture = renderTexture;
+            }
+            else
+            {
+                renderTexture = renderCamera.targetTexture;
+                if (renderTexture.format != RenderTextureFormat.ARGB32)
+                {
+                    throw new Exception("The RenderTexture format must be ARGB32.");
+                }
 
-            renderCamera.targetTexture = renderTexture;
+                if (renderTexture.width != textureWidth || renderTexture.height != textureHeight)
+                {
+                    throw new Exception($"RenderTexture dimensions are incorrect. Expected {textureWidth}x{textureHeight}, but got {renderTexture.width}x{renderTexture.height}.");
+                }
+            }
 
             texture2D = new Texture2D(textureWidth, textureHeight, TextureFormat.RGB24, false);
             compressor = new TJCompressor();
