@@ -23,8 +23,15 @@ namespace ProBridge.Tx.Sensor
         public float maxRange = 10.0f;
         public int horizontalResolution = 10;
         public int verticalResolution = 10;
+        public bool lockStartRotation = false;
 
         public bool showGizmos = true;
+        private Quaternion _initRotation;
+
+        protected override void OnStart()
+        {
+            _initRotation = transform.rotation;
+        }
 
         protected override ProBridge.Msg GetMsg(System.TimeSpan ts)
         {
@@ -35,7 +42,7 @@ namespace ProBridge.Tx.Sensor
 
         private void SimulateSensor()
         {
-            Vector3 direction = transform.forward;
+            Vector3 direction = lockStartRotation? _initRotation * Vector3.forward : transform.forward;
 
             float horizontalStep = FOV / Mathf.Max(1, horizontalResolution - 1);
             float verticalStep = FOV / Mathf.Max(1, verticalResolution - 1);
@@ -83,7 +90,7 @@ namespace ProBridge.Tx.Sensor
 
         private void IterateFOV(System.Action<float, float, Vector3> action)
         {
-            Vector3 direction = transform.forward;
+            Vector3 direction = (lockStartRotation && !showGizmos)? _initRotation * Vector3.forward : transform.forward;
             float horizontalStep = FOV / Mathf.Max(1, horizontalResolution - 1);
             float verticalStep = FOV / Mathf.Max(1, verticalResolution - 1);
 
