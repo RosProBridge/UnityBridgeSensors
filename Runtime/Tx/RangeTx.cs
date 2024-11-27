@@ -83,7 +83,7 @@ namespace ProBridge.Tx.Sensor
 
         private void IterateFOV(System.Action<float, float, Vector3> action)
         {
-            Vector3 direction = transform.forward;
+            Quaternion objectRotation = transform.rotation;
             float horizontalStep = FOV / Mathf.Max(1, horizontalResolution - 1);
             float verticalStep = FOV / Mathf.Max(1, verticalResolution - 1);
 
@@ -92,7 +92,7 @@ namespace ProBridge.Tx.Sensor
                 for (float hAngle = -FOV / 2; hAngle <= FOV / 2; hAngle += horizontalStep)
                 {
                     Quaternion rotation = Quaternion.Euler(vAngle * Mathf.Rad2Deg, hAngle * Mathf.Rad2Deg, 0);
-                    Vector3 rotatedDirection = rotation * direction;
+                    Vector3 rotatedDirection = objectRotation * (rotation * Vector3.forward);
                     action(vAngle, hAngle, rotatedDirection);
                 }
             }
