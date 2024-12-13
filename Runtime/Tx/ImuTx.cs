@@ -3,7 +3,6 @@ using UnityEngine;
 using ProBridge.Tx;
 using ProBridge.Utils;
 using sensor_msgs.msg;
-using Utils;
 
 namespace ProBridgeSenors.Tx
 {

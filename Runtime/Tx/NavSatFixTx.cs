@@ -1,7 +1,6 @@
 using System;
 using UnityEngine;
 using ProBridge.Utils;
-using Utils;
 
 namespace ProBridge.Tx.Sensor
 {
