@@ -10,6 +10,14 @@ namespace ProBridgeSenors.Tx
     public class ImuTx : ProBridgeTxStamped<Imu>
     {
         public Vector3 acceleration { get; private set; }
+        
+        
+        [Header("Noise Parameters")]
+        public bool applyNoise = false;
+        public float linearAccelerationNoiseStdDev = 0.0f;
+        public float angularVelocityNoiseStdDev = 0.0f;
+        public float orientationNoiseStdDev = 0.0f;
+        
 
         private Vector3 _lastVel = new(0, 0, 0);
 
@@ -52,6 +60,23 @@ namespace ProBridgeSenors.Tx
         }
         protected override ProBridge.ProBridge.Msg GetMsg(TimeSpan ts)
         {
+            if (applyNoise)
+            {
+                data.angular_velocity.x += GaussianNoise.Generate(angularVelocityNoiseStdDev);
+                data.angular_velocity.y += GaussianNoise.Generate(angularVelocityNoiseStdDev);
+                data.angular_velocity.z += GaussianNoise.Generate(angularVelocityNoiseStdDev);
+                
+                data.linear_acceleration.x += GaussianNoise.Generate(linearAccelerationNoiseStdDev);
+                data.linear_acceleration.y += GaussianNoise.Generate(linearAccelerationNoiseStdDev);
+                data.linear_acceleration.z += GaussianNoise.Generate(linearAccelerationNoiseStdDev);
+                
+                data.orientation.x += GaussianNoise.Generate(orientationNoiseStdDev);
+                data.orientation.y += GaussianNoise.Generate(orientationNoiseStdDev);
+                data.orientation.z += GaussianNoise.Generate(orientationNoiseStdDev);
+                data.orientation.w += GaussianNoise.Generate(orientationNoiseStdDev);
+            }
+            
+            
             data.angular_velocity = _angularVelocity.ToRos();
             data.linear_acceleration = acceleration.ToRos();
             data.orientation = transform.rotation.ToRos();

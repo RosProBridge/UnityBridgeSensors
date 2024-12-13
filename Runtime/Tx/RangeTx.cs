@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System;
+using ProBridge.Utils;
 
 
 namespace ProBridge.Tx.Sensor
@@ -23,6 +24,10 @@ namespace ProBridge.Tx.Sensor
         public float maxRange = 10.0f;
         public int horizontalResolution = 10;
         public int verticalResolution = 10;
+        
+        [Header("Noise Parameters")]
+        public bool applyNoise = false;
+        public float noiseStdDev = 0.0f;
 
         public bool showGizmos = true;
 
@@ -57,6 +62,11 @@ namespace ProBridge.Tx.Sensor
             data.min_range = minRange;
             data.radiation_type = (byte)radiationType;
             data.range = min_range;
+            
+            if (applyNoise)
+            {
+                data.range += GaussianNoise.Generate(noiseStdDev);
+            }
         }
 
         private void OnDrawGizmos()

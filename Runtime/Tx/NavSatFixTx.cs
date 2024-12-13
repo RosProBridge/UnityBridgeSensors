@@ -50,20 +50,10 @@ namespace ProBridge.Tx.Sensor
             altitude = al;
             if (applyNoise)
             {
-                latitude += GenerateGaussianNoise(latitudeNoiseStdDev);
-                longitude += GenerateGaussianNoise(longitudeNoiseStdDev);
-                altitude += GenerateGaussianNoise(altitudeNoiseStdDev);
+                latitude += GaussianNoise.Generate(latitudeNoiseStdDev);
+                longitude += GaussianNoise.Generate(longitudeNoiseStdDev);
+                altitude += GaussianNoise.Generate(altitudeNoiseStdDev);
             }
-        }
-
-        // Generate Gaussian noise using the Box-Muller transform
-        private double GenerateGaussianNoise(float stdDev)
-        {
-            double u1 = 1.0 - random.NextDouble(); // Uniform(0,1] random doubles
-            double u2 = 1.0 - random.NextDouble();
-            double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
-                                   Math.Sin(2.0 * Math.PI * u2); // Standard normal (0,1)
-            return stdDev * randStdNormal; // Scale to the desired standard deviation
         }
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
