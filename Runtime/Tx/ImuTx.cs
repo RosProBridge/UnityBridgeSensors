@@ -70,10 +70,14 @@ namespace ProBridgeSenors.Tx
                 data.linear_acceleration.y += GaussianNoise.Generate(linearAccelerationNoiseStdDev);
                 data.linear_acceleration.z += GaussianNoise.Generate(linearAccelerationNoiseStdDev);
                 
-                data.orientation.x += GaussianNoise.Generate(orientationNoiseStdDev);
-                data.orientation.y += GaussianNoise.Generate(orientationNoiseStdDev);
-                data.orientation.z += GaussianNoise.Generate(orientationNoiseStdDev);
-                data.orientation.w += GaussianNoise.Generate(orientationNoiseStdDev);
+                
+                var euler = data.orientation.FromRos().eulerAngles;
+                
+                euler.x += GaussianNoise.Generate(orientationNoiseStdDev);
+                euler.y += GaussianNoise.Generate(orientationNoiseStdDev);
+                euler.z += GaussianNoise.Generate(orientationNoiseStdDev);
+
+                data.orientation = Quaternion.Euler(euler).ToRos();
             }
             
             
