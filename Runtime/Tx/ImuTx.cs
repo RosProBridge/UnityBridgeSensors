@@ -81,7 +81,7 @@ namespace ProBridgeSenors.Tx
                 data.orientation = orientationWithNoise.ToRos();
             }            
             
-            data.angular_velocity = _angularVelocity.ToRos();
+            data.angular_velocity = _angularVelocity.ToRosAngular();
             data.linear_acceleration = acceleration.ToRos();
             data.orientation = transform.rotation.ToRos();
 
