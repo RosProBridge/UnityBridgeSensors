@@ -5,6 +5,7 @@ using TurboJpegWrapper;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Time = std_msgs.Time;
 
 namespace ProBridge.Tx.Sensor
 {
@@ -37,7 +38,7 @@ namespace ProBridge.Tx.Sensor
         private bool newFrameAvailable;
         private NativeArray<Color32> imageData;
 
-        private byte[] rawTextureData;
+        private (byte[], Time) rawTextureData;
         private Thread jpegCompressionThread;
 
         private DateTime lastRenderTime;
@@ -73,12 +74,16 @@ namespace ProBridge.Tx.Sensor
             if (format != Format.jpeg) return;
             jpegCompressionThread = new Thread(JpegCompressor);
             jpegCompressionThread.Start();
+
+            autoAddStamp = false;
         }
+
 
         void RenderLoop()
         {
             renderCamera.Render();
-            AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGB24, OnCompleteReadback);
+            Time frameTimestamp = ProBridgeServer.SimTime;
+            AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGB24, (request) => OnCompleteReadback(request, frameTimestamp));
         }
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
@@ -89,17 +94,18 @@ namespace ProBridge.Tx.Sensor
             {
                 // TODO: optimize png encoding
                 data.data = texture2D.EncodeToPNG();
+                data.header.stamp = ProBridgeServer.SimTime;
                 newFrameAvailable = false;
 
                 UpdateFrameRate();
             }
 
-            data.data ??= new byte[] { 0, 0, 0};
+            data.data ??= new byte[] { 0, 0, 0};            
 
             return base.GetMsg(ts);
         }
 
-        private void OnCompleteReadback(AsyncGPUReadbackRequest request)
+        private void OnCompleteReadback(AsyncGPUReadbackRequest request, Time frameTimestamp)
         {
             if (request.hasError)
             {
@@ -115,7 +121,8 @@ namespace ProBridge.Tx.Sensor
 
             if (format == Format.jpeg)
             {
-                rawTextureData = texture2D.GetRawTextureData();
+                rawTextureData.Item1 = texture2D.GetRawTextureData();
+                rawTextureData.Item2 = frameTimestamp;
             }
 
             newFrameAvailable = true;
@@ -128,11 +135,12 @@ namespace ProBridge.Tx.Sensor
             {
                 if (newFrameAvailable)
                 {
-                    data.data = compressor.Compress(rawTextureData, 0,
+                    data.data = compressor.Compress(rawTextureData.Item1, 0,
                         textureWidth,
                         textureHeight, TJPixelFormat.RGB, TJSubsamplingOption.Chrominance420,
                         (int)CompressionQuality,
                         TJFlags.FastDct | TJFlags.BottomUp);
+                    data.header.stamp = rawTextureData.Item2;
 
                     newFrameAvailable = false;
 
