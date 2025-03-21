@@ -73,6 +73,8 @@ namespace ProBridge.Tx.Sensor
             CalculateFieldsOffset();
 
             base.OnStart();
+
+            autoAddStamp = false;
         }
 
         private ScanPattern ReduceScanPatternAngle(ScanPattern scanPattern, float minAzimuth, float maxAzimuth)
@@ -114,6 +116,7 @@ namespace ProBridge.Tx.Sensor
         private void OnSensorUpdated()
         {
             sensorReady = true;
+            data.header.stamp = ProBridgeServer.SimTime;
         }
 
         private void CalculateFieldsOffset()
