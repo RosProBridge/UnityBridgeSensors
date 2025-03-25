@@ -37,7 +37,7 @@ namespace ProBridge.Tx.Sensor
         NativeQueue<PointXYZI>.ParallelWriter tempQueueWriter;
         NativeArray<PointXYZI> tempPointsInput;
         private bool sensorReady = false;
-
+        private TimeSpan __dataTime;
 
         protected override void OnStart()
         {
@@ -114,7 +114,7 @@ namespace ProBridge.Tx.Sensor
         private void OnSensorUpdated()
         {
             sensorReady = true;
-            data.header.stamp = ProBridgeServer.SimTime;
+            __dataTime = ProBridgeServer.SimTime;
         }
 
         private void CalculateFieldsOffset()
@@ -175,7 +175,7 @@ namespace ProBridge.Tx.Sensor
             tempData.Dispose();
             tempPointsInput.Dispose();
 
-            return base.GetMsg(data.header.stamp);
+            return base.GetMsg(__dataTime);
         }
 
 
