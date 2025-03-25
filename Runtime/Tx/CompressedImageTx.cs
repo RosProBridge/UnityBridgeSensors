@@ -74,8 +74,6 @@ namespace ProBridge.Tx.Sensor
             if (format != Format.jpeg) return;
             jpegCompressionThread = new Thread(JpegCompressor);
             jpegCompressionThread.Start();
-
-            autoAddStamp = false;
         }
 
 
@@ -102,7 +100,7 @@ namespace ProBridge.Tx.Sensor
 
             data.data ??= new byte[] { 0, 0, 0};            
 
-            return base.GetMsg(ts);
+            return base.GetMsg(data.header.stamp);
         }
 
         private void OnCompleteReadback(AsyncGPUReadbackRequest request, Time frameTimestamp)
