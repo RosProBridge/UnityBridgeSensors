@@ -35,7 +35,8 @@ namespace ProBridge.Tx.Sensor
         private RenderTexture renderTexture;
         private Texture2D texture2D;
         private TJCompressor compressor;
-        private bool newFrameAvailable;
+        private bool newRawTextureAvailable;
+        private bool newFrameAvailable = false;
         private NativeArray<Color32> imageData;
 
         private (byte[], Time) rawTextureData;
@@ -88,19 +89,25 @@ namespace ProBridge.Tx.Sensor
         {
             data.format = format.ToString();
 
-            if (format == Format.png && newFrameAvailable)
+            if (format == Format.png && newRawTextureAvailable)
             {
                 // TODO: optimize png encoding
-                data.data = texture2D.EncodeToPNG();
                 data.header.stamp = ProBridgeServer.SimTime;
-                newFrameAvailable = false;
-
+                data.data = texture2D.EncodeToPNG();
+                newRawTextureAvailable = false;
+                
                 UpdateFrameRate();
+                return base.GetMsg(data.header.stamp);
             }
 
-            data.data ??= new byte[] { 0, 0, 0};            
+            if (format == Format.jpeg && newFrameAvailable)
+            {
+                newFrameAvailable = false;
+                return base.GetMsg(data.header.stamp);
+                
+            }
 
-            return base.GetMsg(data.header.stamp);
+            return null;
         }
 
         private void OnCompleteReadback(AsyncGPUReadbackRequest request, Time frameTimestamp)
@@ -123,7 +130,7 @@ namespace ProBridge.Tx.Sensor
                 rawTextureData.Item2 = frameTimestamp;
             }
 
-            newFrameAvailable = true;
+            newRawTextureAvailable = true;
         }
 
 
@@ -131,7 +138,7 @@ namespace ProBridge.Tx.Sensor
         {
             while (true)
             {
-                if (newFrameAvailable)
+                if (newRawTextureAvailable)
                 {
                     data.data = compressor.Compress(rawTextureData.Item1, 0,
                         textureWidth,
@@ -140,7 +147,9 @@ namespace ProBridge.Tx.Sensor
                         TJFlags.FastDct | TJFlags.BottomUp);
                     data.header.stamp = rawTextureData.Item2;
 
-                    newFrameAvailable = false;
+                    newRawTextureAvailable = false;
+                    
+                    newFrameAvailable = true;
 
                     UpdateFrameRate();
                 }
