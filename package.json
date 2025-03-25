@@ -1,13 +1,13 @@
 {
   "name": "com.ars.probridge-sensors",
-  "version": "1.6.2",
+  "version": "1.7.1",
   "displayName": "ProBridgeSensors",
   "description": "ProBridge plugin for sensors implementation",
   "unity": "2018.4",
   "type": "library",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.0.2",
-    "com.ars.probridge": "3.0.0",
+    "com.ars.probridge": "3.3.1",
     "com.unity.burst": "1.8.12",
     "com.unity.collections": "1.5.1"
   },

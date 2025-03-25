@@ -27,7 +27,7 @@ namespace ProBridge.Tx.Sensor
         private Vector3 startPos;
         private System.Random random = new System.Random();
 
-        protected override void OnStart()
+        protected override void AfterEnable()
         {
             startPos = transform.position;
             UpdateLLA();

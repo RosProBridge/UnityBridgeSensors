@@ -30,16 +30,16 @@ namespace ProBridge.Tx.Sensor
 
         private PointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
         private FilterZeroPointsParallelJob _zeroFilterJob;
-        
+
         private JobHandle _jobHandle;
         private NativeArray<byte> tempData;
-        NativeQueue<PointXYZI> tempQueue; 
+        NativeQueue<PointXYZI> tempQueue;
         NativeQueue<PointXYZI>.ParallelWriter tempQueueWriter;
         NativeArray<PointXYZI> tempPointsInput;
         private bool sensorReady = false;
+        private TimeSpan __dataTime;
 
-
-        protected override void OnStart()
+        protected override void AfterEnable()
         {
             sensor = gameObject.AddComponent<RaycastLiDARSensor>();
 
@@ -71,18 +71,21 @@ namespace ProBridge.Tx.Sensor
             }
 
             CalculateFieldsOffset();
+        }
 
-            base.OnStart();
+        protected override void AfterDisable()
+        {
+            _jobHandle.Complete();
         }
 
         private ScanPattern ReduceScanPatternAngle(ScanPattern scanPattern, float minAzimuth, float maxAzimuth)
         {
             if (Math.Abs(maxAzimuth - 360f) < ANGLE_TOLERANCE && minAzimuth == 0f) return scanPattern;
-            
+
             var newScans = (from scan in scanPattern.scans
-                let azimuth = Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f
-                where azimuth >= minAzimuth && azimuth <= maxAzimuth
-                select scan).ToList();
+                            let azimuth = Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f
+                            where azimuth >= minAzimuth && azimuth <= maxAzimuth
+                            select scan).ToList();
 
             var newScanPattern = Instantiate(scanPattern);
             newScanPattern.scans = newScans.ToArray();
@@ -113,6 +116,7 @@ namespace ProBridge.Tx.Sensor
 
         private void OnSensorUpdated()
         {
+            __dataTime = ProBridgeServer.SimTime;
             sensorReady = true;
         }
 
@@ -129,10 +133,8 @@ namespace ProBridge.Tx.Sensor
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
         {
             if (!sensorReady)
-            {
-                throw new Exception("Sensor is not ready");
-            }
-            
+                return null;
+
             tempQueue = new NativeQueue<PointXYZI>(Allocator.TempJob);
             tempQueueWriter = tempQueue.AsParallelWriter();
 
@@ -141,9 +143,9 @@ namespace ProBridge.Tx.Sensor
                 inputArray = sensor.pointCloud.points,
                 outputQueue = tempQueueWriter
             };
-            
+
             _zeroFilterJob.Schedule(sensor.pointsNum, 12).Complete();
-            
+
             data.is_bigendian = false;
             data.width = (uint)tempQueue.Count;
             data.height = 1;
@@ -166,24 +168,16 @@ namespace ProBridge.Tx.Sensor
             tempData.CopyTo(data.data);
 
             sensorReady = false;
-            
+
             _jobHandle.Complete();
-            
-            
+
             tempQueue.Dispose();
             tempData.Dispose();
             tempPointsInput.Dispose();
 
-            return base.GetMsg(ts);
+            return base.GetMsg(__dataTime);
         }
 
-
-        protected override void OnStop()
-        {
-            _jobHandle.Complete();
-
-            base.OnStop();
-        }
 
         private uint CalculateFieldsSize()
         {

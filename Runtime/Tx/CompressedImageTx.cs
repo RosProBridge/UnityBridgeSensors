@@ -25,25 +25,70 @@ namespace ProBridge.Tx.Sensor
         public int textureHeight = 1024;
         [Range(1, 100)] public uint CompressionQuality = 90;
 
+        [Header("Debug")]
+        public float frameRate;
         #endregion
 
+        private struct PipeBuffer
+        {
+            public bool useRender, useCompressor;
+            public TimeSpan timeRender, timeCompressor, timeSender;
+            public NativeArray<byte> bufRender;
+            public byte[] bufCompressor;
+            public byte[] bufSender;
+            public object syncSender;
+            public string formatSender;
 
-        [HideInInspector] public float frameRate;
+            public Texture2D textPNG;
+
+            public void Init(int width, int height)
+            {
+                textPNG = new Texture2D(width, height, TextureFormat.RGB24, false);
+                bufRender = new NativeArray<byte>(width * height * 4, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+                bufCompressor = new byte[0];
+                bufSender = null;
+                useRender = true;
+                useCompressor = true;
+                syncSender = new object();
+                formatSender = "";
+            }
+
+            public void Dispose()
+            {
+                bufSender = null;
+                bufCompressor = null;
+                try
+                {
+                    bufRender.Dispose();
+                }
+                catch { }
+                try
+                {
+                    Destroy(textPNG);
+                }
+                catch { }
+            }
+        }
 
 
         private RenderTexture renderTexture;
-        private Texture2D texture2D;
-        private TJCompressor compressor;
-        private bool newFrameAvailable;
-        private NativeArray<Color32> imageData;
 
-        private byte[] rawTextureData;
+        private int __frameRateCounter = 0;
+        private PipeBuffer __pb = new PipeBuffer();
+
+        private EventWaitHandle __readyRawTextureData = new EventWaitHandle(false, EventResetMode.AutoReset);
         private Thread jpegCompressionThread;
 
-        private DateTime lastRenderTime;
+        private bool __active = false;
 
-        protected override void OnStart()
+        protected override void AfterEnable()
         {
+            if (renderCamera == null)
+            {
+                Debug.LogWarning("Render camera is not set.");
+                enabled = false;
+            }
+
             if (renderCamera.targetTexture == null)
             {
                 renderTexture = new RenderTexture(textureWidth, textureHeight, 24, RenderTextureFormat.ARGB32);
@@ -64,107 +109,149 @@ namespace ProBridge.Tx.Sensor
                 }
             }
 
-            texture2D = new Texture2D(textureWidth, textureHeight, TextureFormat.RGB24, false);
-            compressor = new TJCompressor();
-            lastRenderTime = DateTime.Now;
+            __pb.Init(textureWidth, textureHeight);
 
-            InvokeRepeating(nameof(RenderLoop), 0, sendRate);
-
-            if (format != Format.jpeg) return;
+            __active = true;
+            __readyRawTextureData.Reset();
             jpegCompressionThread = new Thread(JpegCompressor);
             jpegCompressionThread.Start();
+
+            InvokeRepeating(nameof(RenderLoop), 0, sendRate);
+            InvokeRepeating(nameof(CalcFPS), 0, 1);
         }
 
-        void RenderLoop()
+        protected override void AfterDisable()
         {
-            renderCamera.Render();
-            AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGB24, OnCompleteReadback);
-        }
+            __active = false;
 
-        protected override ProBridge.Msg GetMsg(TimeSpan ts)
-        {
-            data.format = format.ToString();
+            CancelInvoke(nameof(RenderLoop));
+            CancelInvoke(nameof(CalcFPS));
 
-            if (format == Format.png && newFrameAvailable)
+            if (jpegCompressionThread != null)
             {
-                // TODO: optimize png encoding
-                data.data = texture2D.EncodeToPNG();
-                newFrameAvailable = false;
-
-                UpdateFrameRate();
-            }
-
-            data.data ??= new byte[] { 0, 0, 0};
-
-            return base.GetMsg(ts);
-        }
-
-        private void OnCompleteReadback(AsyncGPUReadbackRequest request)
-        {
-            if (request.hasError)
-            {
-                Debug.LogError("GPU read-back error detected.");
-                return;
-            }
-
-            if (texture2D == null) return;
-
-            imageData = request.GetData<Color32>();
-            texture2D.LoadRawTextureData(imageData);
-            texture2D.Apply();
-
-            if (format == Format.jpeg)
-            {
-                rawTextureData = texture2D.GetRawTextureData();
-            }
-
-            newFrameAvailable = true;
-        }
-
-
-        private void JpegCompressor()
-        {
-            while (true)
-            {
-                if (newFrameAvailable)
+                try
                 {
-                    data.data = compressor.Compress(rawTextureData, 0,
-                        textureWidth,
-                        textureHeight, TJPixelFormat.RGB, TJSubsamplingOption.Chrominance420,
-                        (int)CompressionQuality,
-                        TJFlags.FastDct | TJFlags.BottomUp);
-
-                    newFrameAvailable = false;
-
-                    UpdateFrameRate();
+                    __readyRawTextureData.Set();
+                    if (!jpegCompressionThread.Join(500))
+                        jpegCompressionThread.Abort();
                 }
-
-                Thread.Sleep((int)sendRate * 1000);
+                catch { }
+                finally
+                {
+                    jpegCompressionThread = null;
+                }
             }
-        }
 
-        private void UpdateFrameRate()
-        {
-            frameRate = (float)(1 / (DateTime.Now - lastRenderTime).TotalSeconds);
-            lastRenderTime = DateTime.Now;
-        }
+            __pb.Dispose();
 
-
-        private void OnDestroy()
-        {
             if (renderTexture != null)
             {
                 renderTexture.Release();
             }
+        }
 
-            if (texture2D != null)
+        void CalcFPS()
+        {
+            frameRate = __frameRateCounter;
+            __frameRateCounter = 0;
+        }
+
+        void RenderLoop()
+        {
+            if (__pb.useRender && __active)
             {
-                Destroy(texture2D);
+                __pb.useRender = false;
+                __pb.timeRender = ProBridgeServer.SimTime;
+
+                switch (format)
+                {
+                    case Format.jpeg:
+                        AsyncGPUReadback.RequestIntoNativeArray(ref __pb.bufRender, renderTexture, 0, OnCompleteReadback);
+                        break;
+
+                    case Format.png:
+                        AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGB24, OnCompleteReadbackPNG);
+                        break;
+                }
+            }
+        }
+
+        private void OnCompleteReadback(AsyncGPUReadbackRequest request)
+        {
+            __pb.useRender = true;
+            if (request.hasError || !__active || !__pb.useCompressor)
+                return;
+
+            __pb.bufCompressor = __pb.bufRender.ToArray();
+            __pb.timeCompressor = __pb.timeRender;
+            __readyRawTextureData.Set();
+        }
+
+        private void OnCompleteReadbackPNG(AsyncGPUReadbackRequest request)
+        {
+            __pb.useRender = true;
+            if (request.hasError || !__active)
+                return;
+
+            __pb.textPNG.LoadRawTextureData(request.GetData<Color32>());
+            __pb.textPNG.Apply();
+
+            __pb.timeSender = __pb.timeRender;
+            __pb.formatSender = "png";
+            __pb.bufSender = __pb.textPNG.EncodeToPNG();
+        }
+
+        protected override ProBridge.Msg GetMsg(TimeSpan ts)
+        {
+            lock (__pb.syncSender)
+            {
+                if (__pb.bufSender == null)
+                    return null;
+
+                ts = __pb.timeSender;
+                data.format = __pb.formatSender;
+                data.data = __pb.bufSender;
+                __pb.bufSender = null;
             }
 
-            if (format == Format.jpeg)
+            __frameRateCounter++;
+            return base.GetMsg(ts);
+        }
+
+        private void JpegCompressor()
+        {
+            var compressor = new TJCompressor();
+            try
             {
-                jpegCompressionThread.Abort();
+                while (__active)
+                {
+                    if (!__readyRawTextureData.WaitOne(500) || format != Format.jpeg || !__active)
+                        continue;
+
+                    __pb.useCompressor = false;
+
+                    var jpg = compressor.Compress(__pb.bufCompressor, 0,
+                        textureWidth, textureHeight,
+                        TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance444,
+                        (int)CompressionQuality,
+                        TJFlags.FastDct | TJFlags.BottomUp);
+
+                    lock (__pb.syncSender)
+                    {
+                        if (__pb.bufSender == null)
+                        {
+                            __pb.bufSender = jpg;
+                            __pb.timeSender = __pb.timeCompressor;
+                            __pb.formatSender = "jpeg";
+                        }
+                    }
+
+                    __pb.useCompressor = true;
+                }
+            }
+            finally
+            {
+                compressor.Dispose();
             }
         }
     }

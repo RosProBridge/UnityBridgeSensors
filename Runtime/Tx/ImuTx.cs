@@ -29,7 +29,7 @@ namespace ProBridgeSenors.Tx
         private Vector3 _gravityDirection;
         private float _gravityMagnitude;
 
-        protected override void OnStart()
+        protected override void AfterEnable()
         {
             _gravityDirection = Physics.gravity.normalized;
             _gravityMagnitude = Physics.gravity.magnitude;
