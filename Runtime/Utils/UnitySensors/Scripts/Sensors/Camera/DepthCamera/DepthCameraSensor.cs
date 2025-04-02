@@ -7,6 +7,7 @@ using UnityEngine.Rendering;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 using UnitySensors.Data.PointCloud;
 using UnitySensors.Interface.Sensor;
@@ -31,7 +32,7 @@ namespace UnitySensors.Sensor.Camera
         private RenderTexture _rt = null;
         private Texture2D _texture;
 
-        private Material _mat;
+        public Material mat;
 
         private JobHandle _jobHandle;
 
@@ -63,9 +64,8 @@ namespace UnitySensors.Sensor.Camera
 
             _texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.RGBAFloat, false);
 
-            _mat = new Material(Shader.Find("UnitySensors/Color2Depth"));
             float f = m_camera.farClipPlane;
-            _mat.SetFloat("_F", f);
+            mat.SetFloat("_F", f);
 
             SetupDirections();
             SetupJob();
@@ -177,7 +177,7 @@ namespace UnitySensors.Sensor.Camera
 
         private void OnRenderImage(RenderTexture source, RenderTexture dest)
         {
-            Graphics.Blit(source, dest, _mat);
+            Graphics.Blit(source, dest, mat);
         }
     }
 }

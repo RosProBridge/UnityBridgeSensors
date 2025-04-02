@@ -1,3 +1,15 @@
-﻿fileFormatVersion: 2
+fileFormatVersion: 2
 guid: d5bef5b061084775bddcb18e65f4b81d
-timeCreated: 1729508148
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - host: {instanceID: 0}
+  - renderCamera: {instanceID: 0}
+  - _rawImage: {instanceID: 0}
+  - depthShader: {fileID: 4800000, guid: 0137d279ce9087e4dba1b98935f75aea, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

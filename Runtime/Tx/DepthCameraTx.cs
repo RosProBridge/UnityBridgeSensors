@@ -19,6 +19,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     public int textureHeight = 1024;
     public RawImage _rawImage;
     [Range(1, 100)] public int CompressionQuality = 90;
+    public Shader depthShader;
 
 
     private DepthCameraSensor _cameraSensor;
@@ -29,6 +30,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     protected override void AfterEnable()
     {
         _cameraSensor = renderCamera.gameObject.AddComponent<DepthCameraSensor>();
+        _cameraSensor.mat = new Material(depthShader);
         _cameraSensor._camera = renderCamera;
         _cameraSensor.onSensorUpdated += OnSensorUpdated;
         _cameraSensor._minRange = _minRange;
