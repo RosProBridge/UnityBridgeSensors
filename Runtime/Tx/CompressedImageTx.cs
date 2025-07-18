@@ -81,6 +81,9 @@ namespace ProBridge.Tx.Sensor
 
         private bool __active = false;
 
+        private bool inRequest;
+        private bool disposing;
+
         protected override void AfterEnable()
         {
             if (renderCamera == null)
@@ -112,6 +115,7 @@ namespace ProBridge.Tx.Sensor
             __pb.Init(textureWidth, textureHeight);
 
             __active = true;
+            disposing = false;
             __readyRawTextureData.Reset();
             jpegCompressionThread = new Thread(JpegCompressor);
             jpegCompressionThread.Start();
@@ -122,10 +126,20 @@ namespace ProBridge.Tx.Sensor
 
         protected override void AfterDisable()
         {
-            __active = false;
+            if(inRequest)
+            {
+                disposing = true;
+                return;
+            }
 
-            CancelInvoke(nameof(RenderLoop));
-            CancelInvoke(nameof(CalcFPS));
+            __active = false;
+        
+            // This might be called after the component got destroyed; prevents getting a null ref exception.
+            if (this != null)
+            {
+                CancelInvoke(nameof(RenderLoop));
+                CancelInvoke(nameof(CalcFPS));
+            }
 
             if (jpegCompressionThread != null)
             {
@@ -163,6 +177,9 @@ namespace ProBridge.Tx.Sensor
                 __pb.useRender = false;
                 __pb.timeRender = ProBridgeServer.SimTime;
 
+                if (inRequest) return;
+                inRequest = true;
+
                 switch (format)
                 {
                     case Format.jpeg:
@@ -178,6 +195,13 @@ namespace ProBridge.Tx.Sensor
 
         private void OnCompleteReadback(AsyncGPUReadbackRequest request)
         {
+            inRequest = false;
+            if (disposing)
+            {
+                AfterDisable();
+                return;
+            }
+
             __pb.useRender = true;
             if (request.hasError || !__active || !__pb.useCompressor)
                 return;
