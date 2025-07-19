@@ -9,7 +9,6 @@ namespace ProBridgeSenors.Tx
     [AddComponentMenu("ProBridge/Tx/sensor_msgs/Imu")]
     public class ImuTx : ProBridgeTxStamped<Imu>
     {
-        public Vector3 acceleration { get; private set; }
         
         
         [Header("Noise Parameters")]
@@ -24,7 +23,9 @@ namespace ProBridgeSenors.Tx
         private Vector3 _lastPosition;
         private Quaternion _lastRotation;
         private Vector3 _velocity;
-        private Vector3 _angularVelocity;
+        protected Vector3 _acceleration;
+        protected Vector3 _angularVelocity;
+        protected Quaternion _orientation;
         private bool _isGlobal;
         private Vector3 _gravityDirection;
         private float _gravityMagnitude;
@@ -48,15 +49,16 @@ namespace ProBridgeSenors.Tx
             _lastPosition = transform.position;
             _lastRotation = transform.rotation;
 
-            acceleration = (_velocity - _lastVel) / Time.fixedDeltaTime - transform.InverseTransformDirection(_gravityDirection) * _gravityMagnitude;;
+            _acceleration = (_velocity - _lastVel) / Time.fixedDeltaTime - _gravityDirection * _gravityMagnitude;;
 
             if (!_isGlobal)
             {
-                acceleration = transform.InverseTransformDirection(acceleration);
+                _acceleration = transform.InverseTransformDirection(_acceleration);
                 _angularVelocity = transform.InverseTransformDirection(_angularVelocity);
             }
 
             _lastVel = _velocity;
+            _orientation = transform.rotation;
         }
         protected override ProBridge.ProBridge.Msg GetMsg(TimeSpan ts)
         {
@@ -82,8 +84,8 @@ namespace ProBridgeSenors.Tx
             }            
             
             data.angular_velocity = _angularVelocity.ToRosAngular();
-            data.linear_acceleration = acceleration.ToRos();
-            data.orientation = transform.rotation.ToRos();
+            data.linear_acceleration = _acceleration.ToRos();
+            data.orientation = _orientation.ToRos();
 
             return base.GetMsg(ts);
         }
