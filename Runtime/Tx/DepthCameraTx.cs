@@ -43,6 +43,11 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         _cameraSensor.Init();
     }
 
+    protected override void AfterDisable()
+    {
+        _cameraSensor.DisposeSensor();
+    }
+
     private void OnSensorUpdated()
     {
         sensorReady = true;

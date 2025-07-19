@@ -168,16 +168,25 @@ namespace UnitySensors.Sensor.Camera
 
         protected override void OnSensorDestroy()
         {
-            _jobHandle.Complete();
-            _pointCloud.Dispose();
-            _noises.Dispose();
-            _directions.Dispose();
-            _rt.Release();
+            // _jobHandle.Complete();
+            // _pointCloud.Dispose();
+            // _noises.Dispose();
+            // _directions.Dispose();
+            // _rt.Release();
         }
 
         private void OnRenderImage(RenderTexture source, RenderTexture dest)
         {
             Graphics.Blit(source, dest, mat);
+        }
+
+        public void DisposeSensor()
+        {
+            _jobHandle.Complete();
+            _pointCloud.Dispose();
+            _noises.Dispose();
+            _directions.Dispose();
+            _rt.Release();
         }
     }
 }
