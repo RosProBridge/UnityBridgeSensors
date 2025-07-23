@@ -62,6 +62,10 @@ namespace ProBridgeSenors.Tx
         }
         protected override ProBridge.ProBridge.Msg GetMsg(TimeSpan ts)
         {
+            data.angular_velocity = _angularVelocity.ToRosAngular();
+            data.linear_acceleration = _acceleration.ToRos();
+            data.orientation = _orientation.ToRos();
+            
             if (applyNoise)
             {
                 data.angular_velocity.x += GaussianNoise.Generate(angularVelocityNoiseStdDev);
@@ -82,10 +86,6 @@ namespace ProBridgeSenors.Tx
                 
                 data.orientation = orientationWithNoise.ToRos();
             }            
-            
-            data.angular_velocity = _angularVelocity.ToRosAngular();
-            data.linear_acceleration = _acceleration.ToRos();
-            data.orientation = _orientation.ToRos();
 
             return base.GetMsg(ts);
         }
