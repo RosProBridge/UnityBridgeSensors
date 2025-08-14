@@ -6,21 +6,34 @@ using UnitySensors.Data.PointCloud;
 namespace ProBridge.Tx.Sensor
 {
     [BurstCompile]
-    public struct PointsToPointCloud2MsgJob<T> : IJobParallelFor
-        where T : struct, IPointXYZInterface
+    public struct PointsToPointCloud2MsgJob : IJobParallelFor
     {
-        [ReadOnly] public NativeArray<T> points;
+        [ReadOnly] public NativeArray<PointXYZI> points;
+        [ReadOnly] public bool _includeIntensity;
 
         public NativeArray<byte> data;
-
+        
         public void Execute(int index)
         {
-            NativeArray<float> tmp = new NativeArray<float>(3, Allocator.Temp);
+            var tmp = CreateTempArray(index);
+            var slice = new NativeSlice<float>(tmp).SliceConvert<byte>();
+            var bytesPerPoint = _includeIntensity ? 16 : 12;
+            slice.CopyTo(data.GetSubArray(index * bytesPerPoint, bytesPerPoint));
+        }
+
+        private NativeArray<float> CreateTempArray(int index)
+        {
+            var size = _includeIntensity ? 4 : 3;
+            var tmp = new NativeArray<float>(size, Allocator.Temp);
             tmp[0] = points[index].position.z;
             tmp[1] = -points[index].position.x;
             tmp[2] = points[index].position.y;
-            var slice = new NativeSlice<float>(tmp).SliceConvert<byte>();
-            slice.CopyTo(data.GetSubArray(index * 12, 12));
+            if (_includeIntensity)
+            {
+                tmp[3] = points[index].intensity;
+            }
+            return tmp;
         }
+
     }
 }

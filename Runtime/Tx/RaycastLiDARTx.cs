@@ -20,6 +20,7 @@ namespace ProBridge.Tx.Sensor
         public float _minRange = 0.5f;
         public float _maxRange = 100.0f;
         public float _gaussianNoiseSigma = 0.0f;
+        public bool _includeIntensity;
         public float _maxIntensity = 255.0f;
         public float minAzimuthAngle = 0;
         public float maxAzimuthAngle = 360f;
@@ -28,7 +29,7 @@ namespace ProBridge.Tx.Sensor
 
         private RaycastLiDARSensor sensor;
 
-        private PointsToPointCloud2MsgJob<PointXYZI> _pointsToPointCloud2MsgJob;
+        private PointsToPointCloud2MsgJob _pointsToPointCloud2MsgJob;
         private FilterZeroPointsParallelJob _zeroFilterJob;
 
         private JobHandle _jobHandle;
@@ -60,7 +61,7 @@ namespace ProBridge.Tx.Sensor
             sensor.UpdateSensor();
 
 
-            data.fields = new PointField[3];
+            data.fields = new PointField[_includeIntensity ? 4 : 3];
             for (int i = 0; i < 3; i++)
             {
                 data.fields[i] = new PointField();
@@ -68,6 +69,15 @@ namespace ProBridge.Tx.Sensor
                 data.fields[i].offset = 0;
                 data.fields[i].datatype = PointField.FLOAT32;
                 data.fields[i].count = 1;
+            }
+
+            if (_includeIntensity)
+            {
+                data.fields[3] = new PointField();
+                data.fields[3].name = "intensity";
+                data.fields[3].offset = 0;
+                data.fields[3].datatype = PointField.FLOAT32;
+                data.fields[3].count = 1;
             }
 
             CalculateFieldsOffset();
@@ -155,10 +165,11 @@ namespace ProBridge.Tx.Sensor
             data.data = new byte[data.row_step * data.height];
             tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.TempJob);
             tempPointsInput = tempQueue.ToArray(Allocator.TempJob);
-            _pointsToPointCloud2MsgJob = new PointsToPointCloud2MsgJob<PointXYZI>()
+            _pointsToPointCloud2MsgJob = new PointsToPointCloud2MsgJob
             {
                 points = tempPointsInput,
-                data = tempData
+                data = tempData,
+                _includeIntensity = _includeIntensity
             };
 
             _jobHandle = _pointsToPointCloud2MsgJob.Schedule(tempQueue.Count, 12);
