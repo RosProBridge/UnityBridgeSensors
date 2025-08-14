@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Threading;
 using ProBridge.Tx;
 using sensor_msgs.msg;
 using TurboJpegWrapper;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using UnitySensors.Data.PointCloud;
 using UnitySensors.Sensor.Camera;
 
 [AddComponentMenu("ProBridge/Tx/sensor_msgs/Depth Camera")]
@@ -20,15 +21,23 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     public RawImage _rawImage;
     [Range(1, 100)] public int CompressionQuality = 90;
     public Shader depthShader;
+    public bool getPointCloud = false;
 
+    public PointCloud<PointXYZ> pointCloud
+    {
+        get => _cameraSensor.pointCloud;
+    }
 
     private DepthCameraSensor _cameraSensor;
-
     private bool sensorReady = false;
 
+    // Reuse the compressor to avoid per-frame allocations.
+    private TJCompressor _compressor;
 
     protected override void AfterEnable()
     {
+        _compressor = new TJCompressor();
+
         _cameraSensor = renderCamera.gameObject.AddComponent<DepthCameraSensor>();
         _cameraSensor.mat = new Material(depthShader);
         _cameraSensor._camera = renderCamera;
@@ -40,12 +49,20 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         _cameraSensor._frequency_inv = sendRate;
         _cameraSensor._resolution.x = textureWidth;
         _cameraSensor._resolution.y = textureHeight;
+        _cameraSensor.getPointCloud = getPointCloud;
         _cameraSensor.Init();
     }
 
     protected override void AfterDisable()
     {
-        _cameraSensor.DisposeSensor();
+        if (_cameraSensor != null)
+            _cameraSensor.DisposeSensor();
+
+        if (_compressor != null)
+        {
+            _compressor.Dispose();
+            _compressor = null;
+        }
     }
 
     private void OnSensorUpdated()
@@ -56,17 +73,31 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     protected override ProBridge.ProBridge.Msg GetMsg(TimeSpan ts)
     {
         if (!sensorReady)
-        {
             throw new Exception("Sensor is not ready");
-        }
+
+        var tex = _cameraSensor.texture0;
+        if (tex == null)
+            throw new Exception("Depth sensor texture is not a Texture2D.");
 
         if (_rawImage != null)
-            _rawImage.texture = _cameraSensor.texture0;
+            _rawImage.texture = tex;
 
         sensorReady = false;
 
+        NativeArray<byte> raw = tex.GetRawTextureData<byte>();
+        byte[] rgbaBytes = raw.ToArray();
+
+        var jpg = _compressor.Compress(
+            rgbaBytes, 0,
+            tex.width, tex.height,
+            TJPixelFormat.RGBA,
+            TJSubsamplingOption.Gray,
+            CompressionQuality,
+            TJFlags.FastDct | TJFlags.BottomUp
+        );
+
         data.format = "jpeg";
-        data.data = _cameraSensor.texture0.EncodeToJPG(CompressionQuality);
+        data.data = jpg;
 
         return base.GetMsg(ts);
     }
