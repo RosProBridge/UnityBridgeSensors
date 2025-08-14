@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using UnityEngine;
-
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -17,13 +16,10 @@ namespace UnitySensors.Sensor.Camera
         public float near;
         public float far;
 
-        [ReadOnly]
-        public NativeArray<float3> directions;
+        [ReadOnly] public NativeArray<float3> directions;
 
-        [ReadOnly]
-        public NativeArray<Color> depthPixels;
-        [ReadOnly]
-        public NativeArray<float> noises;
+        [ReadOnly] public NativeArray<Color32> depthPixels;
+        [ReadOnly] public NativeArray<float> noises;
 
         public NativeArray<PointXYZ> points;
 
@@ -31,7 +27,9 @@ namespace UnitySensors.Sensor.Camera
         {
             float distance = (1.0f - Mathf.Clamp01(depthPixels.AsReadOnly()[index].r)) * far;
             float distance_noised = distance + noises[index];
-            distance = (near < distance && distance < far && near < distance_noised && distance_noised < far) ? distance_noised : 0;
+            distance = (near < distance && distance < far && near < distance_noised && distance_noised < far)
+                ? distance_noised
+                : 0;
 
             PointXYZ point = new PointXYZ()
             {

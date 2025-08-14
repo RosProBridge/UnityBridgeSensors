@@ -12,7 +12,6 @@ using UnityEngine.UI;
 using UnitySensors.Data.PointCloud;
 using UnitySensors.Interface.Sensor;
 using UnitySensors.Utils.Noise;
-
 using Random = Unity.Mathematics.Random;
 
 namespace UnitySensors.Sensor.Camera
@@ -20,12 +19,9 @@ namespace UnitySensors.Sensor.Camera
     [AddComponentMenu("")]
     public class DepthCameraSensor : CameraSensor, ITextureInterface, IPointCloudInterface<PointXYZ>
     {
-        [SerializeField]
-        public float _minRange = 0.05f;
-        [SerializeField]
-        public float _maxRange = 100.0f;
-        [SerializeField]
-        public float _gaussianNoiseSigma = 0.0f;
+        [SerializeField] public float _minRange = 0.05f;
+        [SerializeField] public float _maxRange = 100.0f;
+        [SerializeField] public float _gaussianNoiseSigma = 0.0f;
 
 
         public UnityEngine.Camera _camera;
@@ -45,13 +41,31 @@ namespace UnitySensors.Sensor.Camera
         private PointCloud<PointXYZ> _pointCloud;
         private int _pointsNum;
 
-        public override UnityEngine.Camera m_camera { get => _camera; }
-        public Texture2D texture0 { get => _texture; }
-        public Texture2D texture1 { get => _texture; }
-        public PointCloud<PointXYZ> pointCloud { get => _pointCloud; }
-        public int pointsNum { get => _pointsNum; }
-        
-        
+        public override UnityEngine.Camera m_camera
+        {
+            get => _camera;
+        }
+
+        public Texture2D texture0
+        {
+            get => _texture;
+        }
+
+        public Texture2D texture1
+        {
+            get => _texture;
+        }
+
+        public PointCloud<PointXYZ> pointCloud
+        {
+            get => _pointCloud;
+        }
+
+        public int pointsNum
+        {
+            get => _pointsNum;
+        }
+
 
         public override void Init()
         {
@@ -59,10 +73,10 @@ namespace UnitySensors.Sensor.Camera
             _camera.nearClipPlane = _minRange;
             _camera.farClipPlane = _maxRange;
 
-            _rt = new RenderTexture(_resolution.x, _resolution.y, 32, RenderTextureFormat.ARGBFloat);
+            _rt = new RenderTexture(_resolution.x, _resolution.y, 32, RenderTextureFormat.ARGB32);
             _camera.targetTexture = _rt;
 
-            _texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.RGBAFloat, false);
+            _texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.ARGB32, false);
 
             float f = m_camera.farClipPlane;
             mat.SetFloat("_F", f);
@@ -73,7 +87,6 @@ namespace UnitySensors.Sensor.Camera
 
         private void SetupDirections()
         {
-            
             _pointsNum = _resolution.x * _resolution.y;
 
             _directions = new NativeArray<float3>(_pointsNum, Allocator.Persistent);
@@ -136,11 +149,11 @@ namespace UnitySensors.Sensor.Camera
                 jobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
             }
 
-            _textureToPointsJob.depthPixels = _texture.GetPixelData<Color>(0);
             _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, jobHandle);
 
             JobHandle.ScheduleBatchedJobs();
             _jobHandle.Complete();
+                _textureToPointsJob.depthPixels = _texture.GetPixelData<Color32>(0);
 
 
             if (onSensorUpdated != null)
@@ -150,13 +163,14 @@ namespace UnitySensors.Sensor.Camera
         private bool LoadTexture()
         {
             bool result = false;
-            AsyncGPUReadback.Request(_rt, 0, request => {
+            AsyncGPUReadback.Request(_rt, 0, request =>
+            {
                 if (request.hasError)
                 {
                 }
                 else
                 {
-                    var data = request.GetData<Color>();
+                    var data = request.GetData<Color32>();
                     _texture.LoadRawTextureData(data);
                     _texture.Apply();
                     result = true;
