@@ -49,6 +49,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         _cameraSensor._frequency_inv = sendRate;
         _cameraSensor._resolution.x = textureWidth;
         _cameraSensor._resolution.y = textureHeight;
+        _cameraSensor.getPointCloud = getPointCloud;
         _cameraSensor.Init();
     }
 
