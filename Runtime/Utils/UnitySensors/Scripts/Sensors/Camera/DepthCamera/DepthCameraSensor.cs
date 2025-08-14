@@ -66,6 +66,8 @@ namespace UnitySensors.Sensor.Camera
             get => _pointsNum;
         }
 
+        public bool getPointCloud = false;
+
 
         public override void Init()
         {
@@ -104,14 +106,14 @@ namespace UnitySensors.Sensor.Camera
 
         private void SetupJob()
         {
-            
+            if (!getPointCloud) return;
             _pointCloud = new PointCloud<PointXYZ>()
             {
                 points = new NativeArray<PointXYZ>(_pointsNum, Allocator.Persistent)
             };
 
             _noises = new NativeArray<float>(pointsNum, Allocator.Persistent);
-            if(_gaussianNoiseSigma==0f)
+            if (_gaussianNoiseSigma == 0f)
             {
                 for (int i = 0; i < pointsNum; i++)
                 {
@@ -130,7 +132,7 @@ namespace UnitySensors.Sensor.Camera
 
             _textureToPointsJob = new ITextureToPointsJob()
             {
-                near= m_camera.nearClipPlane,
+                near = m_camera.nearClipPlane,
                 far = m_camera.farClipPlane,
                 directions = _directions,
                 noises = _noises,
@@ -142,18 +144,21 @@ namespace UnitySensors.Sensor.Camera
         {
             if (!LoadTexture()) return;
 
-            JobHandle jobHandle = default;
-
-            if (_gaussianNoiseSigma != 0f)
+            if (getPointCloud)
             {
-                jobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
-            }
+                JobHandle jobHandle = default;
 
-            _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, jobHandle);
+                if (_gaussianNoiseSigma != 0f)
+                {
+                    jobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
+                }
 
-            JobHandle.ScheduleBatchedJobs();
-            _jobHandle.Complete();
                 _textureToPointsJob.depthPixels = _texture.GetPixelData<Color32>(0);
+                _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, jobHandle);
+
+                JobHandle.ScheduleBatchedJobs();
+                _jobHandle.Complete();
+            }
 
 
             if (onSensorUpdated != null)

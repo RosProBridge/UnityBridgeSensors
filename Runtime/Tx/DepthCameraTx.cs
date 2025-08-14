@@ -21,7 +21,12 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     public RawImage _rawImage;
     [Range(1, 100)] public int CompressionQuality = 90;
     public Shader depthShader;
+    public bool getPointCloud = false;
 
+    public PointCloud<PointXYZ> pointCloud
+    {
+        get => _cameraSensor.pointCloud;
+    }
 
     private DepthCameraSensor _cameraSensor;
     private bool sensorReady = false;
