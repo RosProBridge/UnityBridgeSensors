@@ -90,10 +90,10 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         var jpg = _compressor.Compress(
             rgbaBytes, 0,
             tex.width, tex.height,
-            TJPixelFormat.RGBA,
-            TJSubsamplingOption.Gray,
+            TJPixelFormats.TJPF_RGBA,
+            TJSubsamplingOptions.TJSAMP_GRAY,
             CompressionQuality,
-            TJFlags.FastDct | TJFlags.BottomUp
+            TJFlags.FASTDCT | TJFlags.BOTTOMUP
         );
 
         data.format = "jpeg";

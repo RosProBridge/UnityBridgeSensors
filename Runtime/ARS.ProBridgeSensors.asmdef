@@ -2,6 +2,7 @@
     "name": "ARS.ProBridgeSensors",
     "rootNamespace": "",
     "references": [
+        "GUID:cd2484254c8e1c54296844514cc734f6",
         "GUID:52e0c9b0743eb4e409ccf123c160c71e",
         "GUID:140f8b606b5974d45a0179759410a664",
         "GUID:d8b63aba1907145bea998dd612889d6b",

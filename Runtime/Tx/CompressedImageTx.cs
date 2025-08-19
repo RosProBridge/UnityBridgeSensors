@@ -126,14 +126,14 @@ namespace ProBridge.Tx.Sensor
 
         protected override void AfterDisable()
         {
-            if(inRequest)
+            if (inRequest)
             {
                 disposing = true;
                 return;
             }
 
             __active = false;
-        
+
             // This might be called after the component got destroyed; prevents getting a null ref exception.
             if (this != null)
             {
@@ -256,9 +256,9 @@ namespace ProBridge.Tx.Sensor
 
                     var jpg = compressor.Compress(__pb.bufCompressor, 0,
                         textureWidth, textureHeight,
-                        TJPixelFormat.RGBA, TJSubsamplingOption.Chrominance444,
+                        TJPixelFormats.TJPF_RGBA, TJSubsamplingOptions.TJSAMP_444,
                         (int)CompressionQuality,
-                        TJFlags.FastDct | TJFlags.BottomUp);
+                        TJFlags.FASTDCT | TJFlags.BOTTOMUP);
 
                     lock (__pb.syncSender)
                     {

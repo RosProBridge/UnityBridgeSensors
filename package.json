@@ -1,6 +1,6 @@
 {
   "name": "com.ars.probridge-sensors",
-  "version": "1.7.6",
+  "version": "1.8.1",
   "displayName": "ProBridgeSensors",
   "description": "ProBridge plugin for sensors implementation",
   "unity": "2018.4",
@@ -9,7 +9,8 @@
     "com.unity.nuget.newtonsoft-json": "3.0.2",
     "com.ars.probridge": "3.3.1",
     "com.unity.burst": "1.8.12",
-    "com.unity.collections": "1.5.1"
+    "com.unity.collections": "1.5.1",
+    "com.prony5.unity.turbojpg": "0.1.0"
   },
   "keywords": [
     "ROS",
