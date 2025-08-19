@@ -30,7 +30,18 @@ Next, you need to open Unity and access the Package Manager:
 
 ![Package Manager Guide](Images/pm.png "Guide to Access Package Manager in Unity")
 
-### 2. Adding Package from git URL
+### 2. Adding Dependencies git URL
+
+Within the Package Manager:
+
+- Click the `+` button in the top left corner.
+- Select `Add package from git URL...`.
+- Add the following link `https://github.com/RosProBridge/UnityBridge.git`
+- Add the following link `https://github.com/prony5/unity_turbojpg.git`
+
+![Package Manager Add](Images/pm_add.png "Add package from git URL")
+
+### 3. Adding Package from git URL
 
 Within the Package Manager:
 
@@ -40,7 +51,7 @@ Within the Package Manager:
 
 ![Package Manager Add](Images/pm_add.png "Add package from git URL")
 
-### 3. Verifying Installation
+### 4. Verifying Installation
 
 If the installation process was successful, you should now be able to see `ProBridgeSensors` listed among the installed packages in the Package Manager. This confirms the package is ready for use in your project.
 
