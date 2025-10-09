@@ -75,10 +75,10 @@ namespace UnitySensors.Sensor.Camera
             _camera.nearClipPlane = _minRange;
             _camera.farClipPlane = _maxRange;
 
-            _rt = new RenderTexture(_resolution.x, _resolution.y, 32, RenderTextureFormat.ARGB32);
+            _rt = new RenderTexture(_resolution.x, _resolution.y, 0, RenderTextureFormat.ARGBFloat);
             _camera.targetTexture = _rt;
 
-            _texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.ARGB32, false);
+            _texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.RGBAFloat, false);
 
             float f = m_camera.farClipPlane;
             mat.SetFloat("_F", f);
@@ -153,7 +153,7 @@ namespace UnitySensors.Sensor.Camera
                     jobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
                 }
 
-                _textureToPointsJob.depthPixels = _texture.GetPixelData<Color32>(0);
+                _textureToPointsJob.depthPixels = _texture.GetPixelData<Color>(0);
                 _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, jobHandle);
 
                 JobHandle.ScheduleBatchedJobs();
@@ -170,14 +170,11 @@ namespace UnitySensors.Sensor.Camera
             bool result = false;
             AsyncGPUReadback.Request(_rt, 0, request =>
             {
-                if (request.hasError)
+                if (!request.hasError)
                 {
-                }
-                else
-                {
-                    var data = request.GetData<Color32>();
+                    var data = request.GetData<Color>();
                     _texture.LoadRawTextureData(data);
-                    _texture.Apply();
+                    _texture.Apply(false, false);
                     result = true;
                 }
             });

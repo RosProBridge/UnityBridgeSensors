@@ -1,15 +1,12 @@
 ﻿using System;
 using ProBridge.Tx;
-using sensor_msgs.msg;
-using TurboJpegWrapper;
-using Unity.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnitySensors.Data.PointCloud;
 using UnitySensors.Sensor.Camera;
 
 [AddComponentMenu("ProBridge/Tx/sensor_msgs/Depth Camera")]
-public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
+public class DepthCameraTx : ProBridgeTxStamped<sensor_msgs.msg.Image>
 {
     public Camera renderCamera;
     public float _minRange = 0.05f;
@@ -32,11 +29,11 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     private bool sensorReady = false;
 
     // Reuse the compressor to avoid per-frame allocations.
-    private TJCompressor _compressor;
+    //private TJCompressor _compressor;
 
     protected override void AfterEnable()
     {
-        _compressor = new TJCompressor();
+        //_compressor = new TJCompressor();
 
         _cameraSensor = renderCamera.gameObject.AddComponent<DepthCameraSensor>();
         _cameraSensor.mat = new Material(depthShader);
@@ -58,11 +55,11 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         if (_cameraSensor != null)
             _cameraSensor.DisposeSensor();
 
-        if (_compressor != null)
-        {
-            _compressor.Dispose();
-            _compressor = null;
-        }
+        //if (_compressor != null)
+        //{
+        //    _compressor.Dispose();
+        //    _compressor = null;
+        //}
     }
 
     private void OnSensorUpdated()
@@ -72,33 +69,52 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
 
     protected override ProBridge.ProBridge.Msg GetMsg(TimeSpan ts)
     {
-        if (!sensorReady)
-            throw new Exception("Sensor is not ready");
-
-        var tex = _cameraSensor.texture0;
-        if (tex == null)
-            throw new Exception("Depth sensor texture is not a Texture2D.");
-
-        if (_rawImage != null)
-            _rawImage.texture = tex;
-
+        if (!sensorReady) return null;
         sensorReady = false;
 
-        NativeArray<byte> raw = tex.GetRawTextureData<byte>();
-        byte[] rgbaBytes = raw.ToArray();
+        var tex = _cameraSensor.texture0;   // TextureFormat.RGBAFloat
+        if (tex == null) return null;
 
-        var jpg = _compressor.Compress(
-            rgbaBytes, 0,
-            tex.width, tex.height,
-            TJPixelFormats.TJPF_RGBA,
-            TJSubsamplingOptions.TJSAMP_GRAY,
-            CompressionQuality,
-            TJFlags.FASTDCT | TJFlags.BOTTOMUP
-        );
+        int W = tex.width, H = tex.height, N = W * H;
 
-        data.format = "jpeg";
-        data.data = jpg;
+        // --- Read depth in METERS as float per pixel ---
+        float[] src; // one float per pixel, row-major (Unity origin = bottom-left)
+
+        if (tex.format == TextureFormat.RFloat)
+        {
+            // Single-channel 32F texture
+            src = tex.GetRawTextureData<float>().ToArray();
+        }
+        else
+        {
+            // RGBAFloat / RGBAHalf path: take R channel as meters
+            var px = tex.GetPixelData<Color>(0);
+            if (!px.IsCreated || px.Length != N) return null;
+            src = new float[N];
+            for (int i = 0; i < N; i++) src[i] = px[i].r;
+        }
+
+        // --- FLIP VERTICALLY: Unity (bottom-left) -> ROS/OpenCV (top-left) ---
+        var flipped = new float[N];
+        for (int y = 0; y < H; y++)
+        {
+            int srcY = H - 1 - y;                 // take rows from bottom to top
+            Array.Copy(src, srcY * W, flipped, y * W, W);
+        }
+
+        // --- Pack to bytes and publish as 32FC1 ---
+        var bytes = new byte[N * sizeof(float)];
+        Buffer.BlockCopy(flipped, 0, bytes, 0, bytes.Length);
+
+        data.height = (uint)H;
+        data.width = (uint)W;
+        data.encoding = "32FC1";    // meters
+        data.is_bigendian = 0;
+        data.step = (uint)(W * 4);
+        data.data = bytes;
+        data.header.frame_id = "depth_camera";
 
         return base.GetMsg(ts);
     }
+
 }

@@ -18,7 +18,7 @@ namespace UnitySensors.Sensor.Camera
 
         [ReadOnly] public NativeArray<float3> directions;
 
-        [ReadOnly] public NativeArray<Color32> depthPixels;
+        [ReadOnly] public NativeArray<Color> depthPixels;
         [ReadOnly] public NativeArray<float> noises;
 
         public NativeArray<PointXYZ> points;
