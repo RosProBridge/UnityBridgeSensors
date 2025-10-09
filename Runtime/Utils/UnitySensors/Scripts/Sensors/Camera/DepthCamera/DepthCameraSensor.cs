@@ -68,20 +68,36 @@ namespace UnitySensors.Sensor.Camera
 
         public bool getPointCloud = false;
 
-
+        // fields to reuse buffers (avoid GC)
+        private byte[] _r16Bytes;   // w*h*2
+        private int _w, _h;
         public override void Init()
         {
             _camera.fieldOfView = _fov;
             _camera.nearClipPlane = _minRange;
             _camera.farClipPlane = _maxRange;
 
-            _rt = new RenderTexture(_resolution.x, _resolution.y, 0, RenderTextureFormat.ARGBFloat);
-            _camera.targetTexture = _rt;
+            //_rt = new RenderTexture(_resolution.x, _resolution.y, 0, RenderTextureFormat.ARGBFloat);
+            //_camera.targetTexture = _rt;
 
-            _texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.RGBAFloat, false);
+            //_texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.RGBAFloat, false);
 
             float f = m_camera.farClipPlane;
             mat.SetFloat("_F", f);
+
+            var desc = new RenderTextureDescriptor(_resolution.x, _resolution.y)
+            {
+                graphicsFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16_UNorm,
+                depthBufferBits = 0,
+                msaaSamples = 1,
+                sRGB = false
+            };
+            _rt = new RenderTexture(desc);
+            _camera.targetTexture = _rt;
+            _camera.depthTextureMode |= DepthTextureMode.Depth;
+
+            _w = _resolution.x; _h = _resolution.y;
+            _r16Bytes = new byte[_w * _h * 2];           // staged buffer
 
             SetupDirections();
             SetupJob();
@@ -144,21 +160,21 @@ namespace UnitySensors.Sensor.Camera
         {
             if (!LoadTexture()) return;
 
-            if (getPointCloud)
-            {
-                JobHandle jobHandle = default;
+            //if (getPointCloud)
+            //{
+            //    JobHandle jobHandle = default;
 
-                if (_gaussianNoiseSigma != 0f)
-                {
-                    jobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
-                }
+            //    if (_gaussianNoiseSigma != 0f)
+            //    {
+            //        jobHandle = _updateGaussianNoisesJob.Schedule(_pointsNum, 1);
+            //    }
 
-                _textureToPointsJob.depthPixels = _texture.GetPixelData<Color>(0);
-                _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, jobHandle);
+            //    _textureToPointsJob.depthPixels = _texture.GetPixelData<Color>(0);
+            //    _jobHandle = _textureToPointsJob.Schedule(_pointsNum, 1, jobHandle);
 
-                JobHandle.ScheduleBatchedJobs();
-                _jobHandle.Complete();
-            }
+            //    JobHandle.ScheduleBatchedJobs();
+            //    _jobHandle.Complete();
+            //}
 
 
             if (onSensorUpdated != null)
@@ -172,9 +188,12 @@ namespace UnitySensors.Sensor.Camera
             {
                 if (!request.hasError)
                 {
-                    var data = request.GetData<Color>();
-                    _texture.LoadRawTextureData(data);
-                    _texture.Apply(false, false);
+                    //var data = request.GetData<Color>();
+                    //_texture.LoadRawTextureData(data);
+                    //_texture.Apply(false, false);
+                    var data = request.GetData<byte>();                 // tightly packed R16
+                                                                   // copy into our reusable managed buffer (NativeArray becomes invalid later)
+                    data.CopyTo(_r16Bytes);
                     result = true;
                 }
             });
@@ -204,5 +223,10 @@ namespace UnitySensors.Sensor.Camera
             _directions.Dispose();
             _rt.Release();
         }
+
+        // Expose the latest packed R16 bytes to the publisher
+        public ReadOnlySpan<byte> LatestR16Bytes() => _r16Bytes;
+        public int Width => _w;
+        public int Height => _h;
     }
 }
