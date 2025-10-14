@@ -13,6 +13,7 @@ using UnitySensors.Data.PointCloud;
 using UnitySensors.Interface.Sensor;
 using UnitySensors.Utils.Noise;
 using Random = Unity.Mathematics.Random;
+using UnityEngine.EventSystems;
 
 namespace UnitySensors.Sensor.Camera
 {
@@ -33,13 +34,15 @@ namespace UnitySensors.Sensor.Camera
         private JobHandle _jobHandle;
 
         private IUpdateGaussianNoisesJob _updateGaussianNoisesJob;
-        private ITextureToPointsJob _textureToPointsJob;
+        private DepthMetersToPointsJob _depthMetersToPointsJob;
 
         private NativeArray<float> _noises;
         private NativeArray<float3> _directions;
 
         private PointCloud<PointXYZ> _pointCloud;
         private int _pointsNum;
+
+        private NativeArray<float> _depthMeters; 
 
         public override UnityEngine.Camera m_camera
         {
@@ -77,11 +80,14 @@ namespace UnitySensors.Sensor.Camera
             _camera.nearClipPlane = _minRange;
             _camera.farClipPlane = _maxRange;
 
+<<<<<<< Updated upstream
             //_rt = new RenderTexture(_resolution.x, _resolution.y, 0, RenderTextureFormat.ARGBFloat);
             //_camera.targetTexture = _rt;
 
             //_texture = new Texture2D(_resolution.x, _resolution.y, TextureFormat.RGBAFloat, false);
 
+=======
+>>>>>>> Stashed changes
             float f = m_camera.farClipPlane;
             mat.SetFloat("_F", f);
 
@@ -101,6 +107,7 @@ namespace UnitySensors.Sensor.Camera
 
             SetupDirections();
             SetupJob();
+            Initialized = true;
         }
 
         private void SetupDirections()
@@ -127,7 +134,7 @@ namespace UnitySensors.Sensor.Camera
             {
                 points = new NativeArray<PointXYZ>(_pointsNum, Allocator.Persistent)
             };
-
+            _depthMeters = new NativeArray<float>(_pointsNum, Allocator.Persistent);
             _noises = new NativeArray<float>(pointsNum, Allocator.Persistent);
             if (_gaussianNoiseSigma == 0f)
             {
@@ -146,12 +153,14 @@ namespace UnitySensors.Sensor.Camera
                 };
             }
 
-            _textureToPointsJob = new ITextureToPointsJob()
+            _depthMetersToPointsJob = new DepthMetersToPointsJob()
             {
-                near = m_camera.nearClipPlane,
-                far = m_camera.farClipPlane,
+                near = _camera.nearClipPlane,
+                far = _camera.farClipPlane,
                 directions = _directions,
+                depthMeters = _depthMeters,
                 noises = _noises,
+                hasNoises = (_gaussianNoiseSigma != 0f),
                 points = _pointCloud.points
             };
         }
@@ -160,6 +169,7 @@ namespace UnitySensors.Sensor.Camera
         {
             if (!LoadTexture()) return;
 
+<<<<<<< Updated upstream
             //if (getPointCloud)
             //{
             //    JobHandle jobHandle = default;
@@ -175,6 +185,36 @@ namespace UnitySensors.Sensor.Camera
             //    JobHandle.ScheduleBatchedJobs();
             //    _jobHandle.Complete();
             //}
+=======
+            if (getPointCloud)
+            {
+                // Convert R16 -> meters (NO vertical flip here)
+                int W = _w, H = _h;
+                float farM = _camera.farClipPlane;
+
+                int idx = 0;
+                for (int y = 0; y < H; y++)
+                {
+                    int rowOff = y * W * 2;
+                    for (int x = 0; x < W; x++, idx++)
+                    {
+                        int off = rowOff + (x << 1);
+                        int u16 = (_r16Bytes[off + 1] << 8) | _r16Bytes[off]; // little-endian
+                        float norm = u16 * (1.0f / 65535.0f);
+                        float dMeters = (1.0f - norm) * farM; // undo shader's normalization
+                        _depthMeters[idx] = dMeters;
+                    }
+                }
+
+                JobHandle jh = default;
+                if (_gaussianNoiseSigma != 0f)
+                    jh = _updateGaussianNoisesJob.Schedule(_pointsNum, 128);
+
+                _jobHandle = _depthMetersToPointsJob.Schedule(_pointsNum, 128, jh);
+                JobHandle.ScheduleBatchedJobs();
+                _jobHandle.Complete();
+            }
+>>>>>>> Stashed changes
 
 
             if (onSensorUpdated != null)
@@ -184,13 +224,17 @@ namespace UnitySensors.Sensor.Camera
         private bool LoadTexture()
         {
             bool result = false;
-            AsyncGPUReadback.Request(_rt, 0, request =>
+            AsyncGPUReadback.Request(_rt, 0, TextureFormat.R16, request =>
             {
                 if (!request.hasError)
+<<<<<<< Updated upstream
                 {
                     //var data = request.GetData<Color>();
                     //_texture.LoadRawTextureData(data);
                     //_texture.Apply(false, false);
+=======
+                { 
+>>>>>>> Stashed changes
                     var data = request.GetData<byte>();                 // tightly packed R16
                                                                    // copy into our reusable managed buffer (NativeArray becomes invalid later)
                     data.CopyTo(_r16Bytes);
@@ -222,11 +266,18 @@ namespace UnitySensors.Sensor.Camera
             _noises.Dispose();
             _directions.Dispose();
             _rt.Release();
+
+            if (_depthMeters.IsCreated) _depthMeters.Dispose();
         }
 
         // Expose the latest packed R16 bytes to the publisher
         public ReadOnlySpan<byte> LatestR16Bytes() => _r16Bytes;
         public int Width => _w;
         public int Height => _h;
+<<<<<<< Updated upstream
+=======
+
+        public bool Initialized { get; private set; }
+>>>>>>> Stashed changes
     }
 }

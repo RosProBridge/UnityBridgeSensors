@@ -25,11 +25,16 @@ public class DepthCameraTx : ProBridgeTxStamped<sensor_msgs.msg.Image>
         get => _cameraSensor.pointCloud;
     }
 
-    private DepthCameraSensor _cameraSensor;
+    public DepthCameraSensor _cameraSensor { get; private set; }
     private bool sensorReady = false;
 
     // Reuse the compressor to avoid per-frame allocations.
     //private TJCompressor _compressor;
+<<<<<<< Updated upstream
+=======
+    private int H;
+    private int W;
+>>>>>>> Stashed changes
 
     protected override void AfterEnable()
     {
@@ -48,6 +53,15 @@ public class DepthCameraTx : ProBridgeTxStamped<sensor_msgs.msg.Image>
         _cameraSensor._resolution.y = textureHeight;
         _cameraSensor.getPointCloud = getPointCloud;
         _cameraSensor.Init();
+
+        W = _cameraSensor.Width;
+        H = _cameraSensor.Height;
+
+        data.height = (uint)H;
+        data.width = (uint)W;
+        data.encoding = "16UC1";
+        data.is_bigendian = 0;
+        data.step = (uint)(W * 2);
     }
 
     protected override void AfterDisable()
@@ -72,8 +86,12 @@ public class DepthCameraTx : ProBridgeTxStamped<sensor_msgs.msg.Image>
         if (!sensorReady) return null;
         sensorReady = false;
 
+<<<<<<< Updated upstream
         int W = _cameraSensor.Width;
         int H = _cameraSensor.Height;
+=======
+        
+>>>>>>> Stashed changes
         if (W <= 0 || H <= 0) return null;
 
         // Packed R16 UNorm from the sensor (length = W*H*2)
@@ -116,6 +134,7 @@ public class DepthCameraTx : ProBridgeTxStamped<sensor_msgs.msg.Image>
         byte[] bytes = new byte[W * H * 2];
         Buffer.BlockCopy(dstU16, 0, bytes, 0, bytes.Length);
 
+<<<<<<< Updated upstream
         data.height = (uint)H;
         data.width = (uint)W;
         data.encoding = "16UC1";
@@ -171,6 +190,12 @@ public class DepthCameraTx : ProBridgeTxStamped<sensor_msgs.msg.Image>
         //    data.header.frame_id = "depth_camera";
 
         //    return base.GetMsg(ts);
+=======
+        data.data = bytes;
+
+        return base.GetMsg(ts);
+       
+>>>>>>> Stashed changes
     }
 
 }
