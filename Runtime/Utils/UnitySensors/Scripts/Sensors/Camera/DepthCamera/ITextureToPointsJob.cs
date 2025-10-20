@@ -1,4 +1,4 @@
-// Copyright [2020-2024] Ryodo Tanaka (groadpg@gmail.com) and Akiro Harada
+﻿// Copyright [2020-2024] Ryodo Tanaka (groadpg@gmail.com) and Akiro Harada
 // SPDX-License-Identifier: Apache-2.0
 
 using UnityEngine;
@@ -17,25 +17,25 @@ namespace UnitySensors.Sensor.Camera
         public float far;
 
         [ReadOnly] public NativeArray<float3> directions;
-
-        [ReadOnly] public NativeArray<Color> depthPixels;
+        [ReadOnly] public NativeArray<Color32> depthPixels; // 8-bit/channel
         [ReadOnly] public NativeArray<float> noises;
 
         public NativeArray<PointXYZ> points;
 
         public void Execute(int index)
         {
-            float distance = (1.0f - Mathf.Clamp01(depthPixels.AsReadOnly()[index].r)) * far;
-            float distance_noised = distance + noises[index];
-            distance = (near < distance && distance < far && near < distance_noised && distance_noised < far)
-                ? distance_noised
-                : 0;
+            byte r8 = depthPixels[index].r;
+            float r01 = r8 * (1.0f / 255.0f);     // ← scale to 0..1
 
-            PointXYZ point = new PointXYZ()
-            {
-                position = directions[index] * distance
-            };
-            points[index] = point;
+            // shader outputs: distance01 = 1 - depthMeters/_F
+            float distance = (1.0f - math.saturate(r01)) * far; //meters
+
+            float distance_noised = distance + noises[index];
+            if (!(near < distance && distance < far && near < distance_noised && distance_noised < far))
+                distance_noised = 0f;
+
+            points[index] = new PointXYZ { position = directions[index] * distance_noised };
         }
     }
+
 }
