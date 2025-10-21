@@ -28,7 +28,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         get => _cameraSensor.pointCloud;
     }
 
-    private DepthCameraSensor _cameraSensor;
+    public DepthCameraSensor _cameraSensor { get; private set; }
     private bool sensorReady = false;
 
     // Reuse the compressor to avoid per-frame allocations.
@@ -75,14 +75,12 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         if (!sensorReady)
             throw new Exception("Sensor is not ready");
 
-        var tex = _cameraSensor.texture0;
-        if (tex == null)
-            throw new Exception("Depth sensor texture is not a Texture2D.");
-
-        if (_rawImage != null)
-            _rawImage.texture = tex;
-
         sensorReady = false;
+
+        var tex = _cameraSensor.texture0;
+        if (tex == null) return null;
+
+        if (_rawImage != null) _rawImage.texture = tex;
 
         NativeArray<byte> raw = tex.GetRawTextureData<byte>();
         byte[] rgbaBytes = raw.ToArray();
@@ -98,7 +96,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
 
         data.format = "jpeg";
         data.data = jpg;
-
         return base.GetMsg(ts);
     }
+
 }
