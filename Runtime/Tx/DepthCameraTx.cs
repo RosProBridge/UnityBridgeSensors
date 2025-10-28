@@ -21,6 +21,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     public RawImage _rawImage;
     [Range(1, 100)] public int CompressionQuality = 90;
     public Shader depthShader;
+    public bool invertDepthColors = false;
     public bool getPointCloud = false;
 
     public PointCloud<PointXYZ> pointCloud
@@ -84,6 +85,17 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
 
         NativeArray<byte> raw = tex.GetRawTextureData<byte>();
         byte[] rgbaBytes = raw.ToArray();
+
+        if (invertDepthColors)
+        {
+            for (int i = 0; i < rgbaBytes.Length; i += 4)
+            {
+                byte inv = (byte)(255 - rgbaBytes[i]);
+                rgbaBytes[i] = inv;
+                rgbaBytes[i + 1] = inv;
+                rgbaBytes[i + 2] = inv;
+            }
+        }
 
         var jpg = _compressor.Compress(
             rgbaBytes, 0,
