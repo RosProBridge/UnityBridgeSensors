@@ -10,6 +10,7 @@ namespace ProBridgeSenors.Tx
     public class ImuTx : ProBridgeTxStamped<Imu>
     {
         
+        public bool _isGlobal;
         
         [Header("Noise Parameters")]
         public bool applyNoise = false;
@@ -26,7 +27,6 @@ namespace ProBridgeSenors.Tx
         protected Vector3 _acceleration;
         protected Vector3 _angularVelocity;
         protected Quaternion _orientation;
-        private bool _isGlobal;
         private Vector3 _gravityDirection;
         private float _gravityMagnitude;
 
@@ -49,7 +49,7 @@ namespace ProBridgeSenors.Tx
             _lastPosition = transform.position;
             _lastRotation = transform.rotation;
 
-            _acceleration = (_velocity - _lastVel) / Time.fixedDeltaTime - _gravityDirection * _gravityMagnitude;;
+            _acceleration = (_velocity - _lastVel) / Time.fixedDeltaTime - _gravityDirection * _gravityMagnitude;
 
             if (!_isGlobal)
             {
