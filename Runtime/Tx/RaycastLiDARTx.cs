@@ -16,7 +16,6 @@ namespace ProBridge.Tx.Sensor
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
         [Header("Lidar Params")] public ScanPattern _scanPattern;
-        public int _pointsNumPerScan = 10000;
         public float _minRange = 0.5f;
         public float _maxRange = 100.0f;
         public float _gaussianNoiseSigma = 0.0f;
@@ -24,7 +23,7 @@ namespace ProBridge.Tx.Sensor
         public float _maxIntensity = 255.0f;
         public float minAzimuthAngle = 0;
         public float maxAzimuthAngle = 360f;
-        [Range(0f, 1f)] public float downSampleScale = 0.5f;
+        [Range(0f, 1f)] public float downSampleScale = 0;
 
 
         private RaycastLiDARSensor sensor;
@@ -48,7 +47,7 @@ namespace ProBridge.Tx.Sensor
             processedScanPattern = ReduceScanPatternAngle(processedScanPattern, minAzimuthAngle, maxAzimuthAngle);
 
             sensor._scanPattern = processedScanPattern;
-            sensor._pointsNumPerScan = Mathf.Min(processedScanPattern.scans.Length, _pointsNumPerScan);
+            sensor._pointsNumPerScan = processedScanPattern.scans.Length;
             sensor._minRange = _minRange;
             sensor._maxRange = _maxRange;
             sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
