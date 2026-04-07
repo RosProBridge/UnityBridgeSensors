@@ -41,7 +41,7 @@ namespace UnitySensors.Sensor.LiDAR
             distance = (minRange < distance && distance < maxRange && minRange < distance_noised && distance_noised < maxRange) ? distance_noised : 0;
             PointXYZI point = new PointXYZI()
             {
-                position = directions[index + indexOffset] * distance,
+                position = math.normalize(directions[index + indexOffset]) * distance,
                 intensity = (distance != 0) ? maxIntensity * minRange_sqr / (distance * distance) : 0
             };
             points[index] = point;
