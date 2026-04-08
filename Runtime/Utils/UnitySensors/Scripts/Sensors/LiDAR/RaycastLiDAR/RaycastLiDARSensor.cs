@@ -60,7 +60,7 @@ namespace UnitySensors.Sensor.LiDAR
             _updateRaycastCommandsJob = new IUpdateRaycastCommandsJob()
             {
                 origin = _transform.position,
-                localToWorldMatrix = _transform.localToWorldMatrix,
+                rotation = _transform.rotation,
                 maxRange = maxRange,
                 directions = _directions,
                 indexOffset = 0,
@@ -91,7 +91,7 @@ namespace UnitySensors.Sensor.LiDAR
         public override void UpdateSensor()
         {
             _updateRaycastCommandsJob.origin = _transform.position;
-            _updateRaycastCommandsJob.localToWorldMatrix = _transform.localToWorldMatrix;
+            _updateRaycastCommandsJob.rotation = _transform.rotation;
 
             JobHandle updateRaycastCommandsJobHandle = _updateRaycastCommandsJob.Schedule(pointsNum, 1);
             JobHandle updateGaussianNoisesJobHandle = _updateGaussianNoisesJob.Schedule(pointsNum, 1, updateRaycastCommandsJobHandle);

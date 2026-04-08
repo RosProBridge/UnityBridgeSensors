@@ -89,12 +89,26 @@ namespace ProBridge.Tx.Sensor
 
         private ScanPattern ReduceScanPatternAngle(ScanPattern scanPattern, float minAzimuth, float maxAzimuth)
         {
-            if (Math.Abs(maxAzimuth - 360f) < ANGLE_TOLERANCE && minAzimuth == 0f) return scanPattern;
+            // Full-circle case
+            if (Math.Abs(maxAzimuth - 360f) < ANGLE_TOLERANCE && Mathf.Abs(minAzimuth) < ANGLE_TOLERANCE)
+                return scanPattern;
+
+            float NormalizeSignedAngle(float angle)
+            {
+                angle %= 360f;
+                if (angle > 180f) angle -= 360f;
+                if (angle <= -180f) angle += 360f;
+                return angle;
+            }
+
+            minAzimuth = NormalizeSignedAngle(minAzimuth);
+            maxAzimuth = NormalizeSignedAngle(maxAzimuth);
 
             var newScans = (from scan in scanPattern.scans
-                            let azimuth = Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f
-                            where azimuth >= minAzimuth && azimuth <= maxAzimuth
-                            select scan).ToList();
+                let azimuth = NormalizeSignedAngle(
+                    Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f)
+                where azimuth >= minAzimuth && azimuth <= maxAzimuth
+                select scan).ToList();
 
             var newScanPattern = Instantiate(scanPattern);
             newScanPattern.scans = newScans.ToArray();
