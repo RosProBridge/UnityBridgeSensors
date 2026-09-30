@@ -119,7 +119,8 @@ namespace ProBridge.Tx.Sensor
             jpegCompressionThread = new Thread(JpegCompressor);
             jpegCompressionThread.Start();
 
-            InvokeRepeating(nameof(RenderLoop), 0, sendRate);
+            // sendRate 0 means "every simulation step" (ProBridge 3.5+); InvokeRepeating needs a positive period.
+            InvokeRepeating(nameof(RenderLoop), 0, sendRate > 0f ? sendRate : Time.fixedDeltaTime);
             InvokeRepeating(nameof(CalcFPS), 0, 1);
         }
 
