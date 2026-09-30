@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading;
 using sensor_msgs.msg;
-using TurboJpegWrapper;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -244,7 +243,7 @@ namespace ProBridge.Tx.Sensor
 
         private void JpegCompressor()
         {
-            var compressor = new TJCompressor();
+            var encoder = new JpegEncoder();
             try
             {
                 while (__active)
@@ -254,11 +253,7 @@ namespace ProBridge.Tx.Sensor
 
                     __pb.useCompressor = false;
 
-                    var jpg = compressor.Compress(__pb.bufCompressor, 0,
-                        textureWidth, textureHeight,
-                        TJPixelFormats.TJPF_RGBA, TJSubsamplingOptions.TJSAMP_444,
-                        (int)CompressionQuality,
-                        TJFlags.FASTDCT | TJFlags.BOTTOMUP);
+                    var jpg = encoder.Encode(__pb.bufCompressor, textureWidth, textureHeight, (int)CompressionQuality);
 
                     lock (__pb.syncSender)
                     {
@@ -275,7 +270,7 @@ namespace ProBridge.Tx.Sensor
             }
             finally
             {
-                compressor.Dispose();
+                encoder.Dispose();
             }
         }
     }

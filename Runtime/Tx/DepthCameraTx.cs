@@ -1,7 +1,7 @@
 ﻿using System;
 using ProBridge.Tx;
+using ProBridge.Tx.Sensor;
 using sensor_msgs.msg;
-using TurboJpegWrapper;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -32,12 +32,12 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
     public DepthCameraSensor _cameraSensor { get; private set; }
     private bool sensorReady = false;
 
-    // Reuse the compressor to avoid per-frame allocations.
-    private TJCompressor _compressor;
+    // Reuse the encoder to avoid per-frame allocations.
+    private JpegEncoder _encoder;
 
     protected override void AfterEnable()
     {
-        _compressor = new TJCompressor();
+        _encoder = new JpegEncoder();
 
         _cameraSensor = renderCamera.gameObject.AddComponent<DepthCameraSensor>();
         _cameraSensor.mat = new Material(depthShader);
@@ -59,10 +59,10 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
         if (_cameraSensor != null)
             _cameraSensor.DisposeSensor();
 
-        if (_compressor != null)
+        if (_encoder != null)
         {
-            _compressor.Dispose();
-            _compressor = null;
+            _encoder.Dispose();
+            _encoder = null;
         }
     }
 
@@ -97,14 +97,7 @@ public class DepthCameraTx : ProBridgeTxStamped<CompressedImage>
             }
         }
 
-        var jpg = _compressor.Compress(
-            rgbaBytes, 0,
-            tex.width, tex.height,
-            TJPixelFormats.TJPF_RGBA,
-            TJSubsamplingOptions.TJSAMP_GRAY,
-            CompressionQuality,
-            TJFlags.FASTDCT | TJFlags.BOTTOMUP
-        );
+        var jpg = _encoder.Encode(rgbaBytes, tex.width, tex.height, CompressionQuality, grayscale: true);
 
         data.format = "jpeg";
         data.data = jpg;
