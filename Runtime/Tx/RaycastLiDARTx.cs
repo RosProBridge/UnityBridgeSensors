@@ -64,7 +64,7 @@ namespace ProBridge.Tx.Sensor
         private int _start;
         private uint _noiseSeed = 1;
 
-#if ROS_V2
+#if ROS_V2 && PROBRIDGE_DEFAULT_QOS // com.ars.probridge >= 3.6.0
         protected override Qos CreateDefaultQos() => new Qos
         {
             qosType = Qos.QOSType.Dict,

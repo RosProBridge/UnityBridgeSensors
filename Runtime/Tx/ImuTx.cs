@@ -30,7 +30,7 @@ namespace ProBridgeSenors.Tx
         private Vector3 _gravityDirection;
         private float _gravityMagnitude;
 
-#if ROS_V2
+#if ROS_V2 && PROBRIDGE_DEFAULT_QOS // com.ars.probridge >= 3.6.0
         protected override Qos CreateDefaultQos() => new Qos
         {
             qosType = Qos.QOSType.Dict,

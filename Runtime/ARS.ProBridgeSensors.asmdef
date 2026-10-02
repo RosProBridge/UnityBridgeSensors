@@ -16,6 +16,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.ars.probridge",
+            "expression": "3.6.0",
+            "define": "PROBRIDGE_DEFAULT_QOS"
+        }
+    ],
     "noEngineReferences": false
 }
