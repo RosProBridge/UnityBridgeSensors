@@ -71,7 +71,8 @@ Lidar params:
 - **Min Range / Max Range:** The detection range, in meters.
 - **Gaussian Noise Sigma:** The standard deviation of the range noise, in meters.
 - **Min / Max Azimuth Angle:** Only pattern points within this azimuth range are used (`0..360` = full pattern).
-- **Down Sample Scale:** The share of the pattern points skipped in every scan, `0..0.99`. Default `0.9`: every scan casts 10% of the pattern.
+- **Points Per Second:** Point rate as in the lidar datasheet (Livox Mid-70: `100000`, Mid-360: `200000`, Velodyne VLP-16: `300000`); points per scan = this × `Send Rate`, reduced in proportion to the `Min / Max Azimuth Angle` crop, so the angular density stays as in the datasheet (a VLP-16 cropped to -90..90° gives 14 400 points at 0.2°). `0` (default): use `Down Sample Scale`.
+- **Down Sample Scale:** The share of the pattern points skipped in every scan, `0..0.99` (when `Points Per Second` is `0`). Default `0.9`: every scan casts 10% of the pattern. Note that pattern assets are long (Mid-70 ~444k points, Mid-360 ~900k), so this can give far more points than the real sensor.
 - **Pattern Shift:** Which pattern points are taken in the next scan, see [Non-repeating Scan Pattern](#non-repeating-scan-pattern). Default `None`.
 
 Intensity params (see [Intensity](#intensity)):
@@ -82,6 +83,12 @@ Intensity params (see [Intensity](#intensity)):
 - **Default Reflectivity:** Reflectivity of colliders without a `LidarReflectivity` component and without a material, `0..1`. Default `0.3`.
 - **Range Falloff:** Intensity drop at max range: `0` = none (calibrated reflectivity, as Livox/Velodyne/Ouster report it), `1` = down to zero. Default `0.2`.
 
+### Performance
+
+A scan is cast in slices, one per physics step between two messages (5 slices for `Send Rate = 0.1` and a 0.02 s physics step), each from the lidar pose at its step, like a real scanning lidar (moving the sensor distorts the cloud the same way). Each slice is scheduled as Burst jobs chained after the previous one, and the chain is completed only when the scan is sent, so the rays are cast on worker threads while the frame goes on (also when several physics steps run in one frame). Packing into `PointCloud2` is a single Burst job; serialization, compression and the socket send of all publishers run on the ProBridge host sender thread. Profiler markers: `RaycastLiDAR.*`, `ProBridgeTx.GetMsg <Type>`, `ProBridge.Serialize`, and `ProBridge.BuildFrame` / `ProBridge.SocketSend` on the `ProBridge` sender threads.
+
+The cost grows with the number of rays: prefer `Points Per Second` matching the real sensor.
+
 ### Non-repeating Scan Pattern
 
 With `Down Sample Scale > 0` every scan uses only a part of the pattern. `Pattern Shift` selects which part:
@@ -91,6 +98,8 @@ With `Down Sample Scale > 0` every scan uses only a part of the pattern. `Patter
 - **None** (default): the same points every scan (static picture).
 
 All modes cost the same: only the pattern index of each ray changes.
+
+Thinning keeps whole columns: consecutive pattern points with the same azimuth (one firing of all rings of a rotating lidar, e.g. 16 for VLP-16; 1 for Livox) are detected from the pattern, so a VLP-16 keeps all 16 rings and loses only azimuth resolution. Use `None` or `Interleaved` for rotating lidars (one revolution per pattern) and `Sequential` for time-ordered Livox patterns.
 
 ### Intensity
 
