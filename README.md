@@ -7,9 +7,11 @@ Unity ProBridge Sensors is a plugin for [Unity ProBridge](https://github.com/Ros
 - **RGB Camera**
 - **IMU**
 - **NavSatFix**
-- **Lidar**:
+- **Lidar** (raycast, Burst jobs):
   - Velodyne: VLP-16, VLP-16-HiRes, VLP-32, HDL-32E, VLS-128
   - Livox: Avia, Horizon, Mid40, Mid70, Tele, HAP, Mid360
+  - Optional non-repeating scan: every scan takes the next part of the pattern (Livox-like), so accumulated points fill the field of view.
+  - Intensity from surface reflectivity (material albedo or `LidarReflectivity` component), incidence angle and range.
 
 ## Installation Guide
 

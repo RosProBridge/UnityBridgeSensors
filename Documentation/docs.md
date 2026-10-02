@@ -10,6 +10,8 @@
 3. [Imu](#imu)
 4. [NavSatFix](#navsatfix)
 5. [RayCast Lidar](#raycast-lidar)
+   - [Non-repeating Scan Pattern](#non-repeating-scan-pattern)
+   - [Intensity](#intensity)
    - [Adding Scan Patterns](#adding-scan-patterns)
       - [By CSV](#by-csv)
       - [Manually](#manually)
@@ -49,6 +51,8 @@ The `CameraInfo` publisher sends `sensor_msgs.msg.CameraInfo` messages. It has t
 
 The `Imu` publisher sends `sensor_msgs.msg.Imu` messages. It requires the GameObject to have a `Rigidbody` component.
 
+Default QoS (ROS 2) of a new IMU component: `Dict`, `BEST_EFFORT`, `KEEP_LAST`, depth `1`, `VOLATILE`, liveliness `SYSTEM_DEFAULT`.
+
 ## NavSatFix
 
 The `NavSatFix` publisher sends `sensor_msgs.msg.NavSatFix` messages. It includes the following field:
@@ -57,19 +61,55 @@ The `NavSatFix` publisher sends `sensor_msgs.msg.NavSatFix` messages. It include
 
 ## RayCast Lidar
 
-The `RayCast Lidar` publisher sends `sensor_msgs.msg.PointCloud2` messages and has the following fields:
+The `RayCast Lidar` publisher sends `sensor_msgs.msg.PointCloud2` messages (`x`, `y`, `z` and optionally `intensity`, all `float32`). Rays are cast with `RaycastCommand` in Burst jobs only when a message is sent: nothing is computed while the component is disabled or the host is disconnected (see `Use Without Link` in the ProBridge docs).
+
+Default QoS (ROS 2) of a new lidar component: `Dict`, `RELIABLE`, `KEEP_LAST`, depth `5`, `VOLATILE`, liveliness `SYSTEM_DEFAULT`.
+
+Lidar params:
 
 - **Scan Pattern:** Select a scriptable object asset that defines the scan pattern. See the section below on creating or obtaining scan patterns.
-- **Points Num Per Scan:** The maximum number of points in each scan.
-  - If the number of points in the scan pattern exceeds `Points Num Per Scan`, the scan will be divided and sent in smaller parts, each containing at most this number.
-  - If the number of points is less than `Points Num Per Scan`, the full scan is sent in a single message.
-- **Min Range:** The minimum detection range.
-- **Max Range:** The maximum detection range.
-- **Gaussian Noise Sigma:** The standard deviation for Gaussian noise, controlling the noise spread.
-- **Max Intensity:** The highest possible intensity value for a point in the LiDAR sensor data.
-- **Down Sample Scale:** The percentage by which the number of points in the scan is reduced.
-  - `0` means no downsampling; all points are scanned and sent.
-  - `0.99` means only 1% of the points are scanned and sent.
+- **Min Range / Max Range:** The detection range, in meters.
+- **Gaussian Noise Sigma:** The standard deviation of the range noise, in meters.
+- **Min / Max Azimuth Angle:** Only pattern points within this azimuth range are used (`0..360` = full pattern).
+- **Down Sample Scale:** The share of the pattern points skipped in every scan, `0..0.99`. Default `0.9`: every scan casts 10% of the pattern.
+- **Pattern Shift:** Which pattern points are taken in the next scan, see [Non-repeating Scan Pattern](#non-repeating-scan-pattern). Default `None`.
+
+Intensity params (see [Intensity](#intensity)):
+
+- **Include Intensity:** Adds the `intensity` field to the point cloud.
+- **Max Intensity:** Intensity of a retroreflector at zero range. Default `255`.
+- **Diffuse Max Intensity:** Intensity of a 100% diffuse surface hit straight on at zero range. Default `150` (Livox); use `100` for Velodyne.
+- **Default Reflectivity:** Reflectivity of colliders without a `LidarReflectivity` component and without a material, `0..1`. Default `0.3`.
+- **Range Falloff:** Intensity drop at max range: `0` = none (calibrated reflectivity, as Livox/Velodyne/Ouster report it), `1` = down to zero. Default `0.2`.
+
+### Non-repeating Scan Pattern
+
+With `Down Sample Scale > 0` every scan uses only a part of the pattern. `Pattern Shift` selects which part:
+
+- **Sequential:** every scan takes the next consecutive chunk of the pattern. Livox patterns are recorded in time order, so this plays the real rosette back: a single scan looks like the real sensor output for that period, and accumulated scans fill the whole field of view.
+- **Interleaved:** every scan takes every N-th point with a phase shifted by one each scan. Each scan covers the full field of view sparsely; after N scans the whole pattern is covered.
+- **None** (default): the same points every scan (static picture).
+
+All modes cost the same: only the pattern index of each ray changes.
+
+### Intensity
+
+```
+diffuse:          intensity = DiffuseMaxIntensity * reflectivity * cos(incidence) * falloff(range)
+retroreflective:  intensity = DiffuseMaxIntensity + (MaxIntensity - DiffuseMaxIntensity) * reflectivity * falloff(range)
+falloff(range)  = 1 - RangeFalloff * (range - MinRange) / (MaxRange - MinRange)
+```
+
+`reflectivity` is the diffuse (Lambertian) reflectivity `0..1` at the lidar wavelength, the same unit lidar datasheets use ("range at 10% / 80% reflectivity"). It is resolved per collider, in this order:
+
+1. **`LidarReflectivity` component** on the collider's object or any parent (**ProBridge > Sensors > Lidar Reflectivity**): `Reflectivity` (`0..1`) and `Retroreflective` for road signs, reflectors and license plates. Typical values: asphalt ~0.1, concrete ~0.3, vegetation ~0.5, white paint ~0.8.
+2. **Material:** luminance of the linear albedo, `_BaseColor` (or `_Color`) multiplied by the average color of `_BaseMap` (or the main texture), clamped to `0.02..0.9`. Computed once per material on the GPU, so textures do not need to be readable.
+3. **Terrain:** the average of the terrain layers' diffuse textures (one value for the whole terrain).
+4. **Default Reflectivity** of the lidar.
+
+Values are cached per collider; a collider hit for the first time gets `Default Reflectivity` in that scan and its own value from the next one. Changing any `LidarReflectivity` resets the cache.
+
+> **Note:** visible albedo is only an approximation of the near-infrared reflectivity (e.g. vegetation is much brighter in NIR). Use `LidarReflectivity` where it matters.
 
 ### Adding Scan Patterns
 

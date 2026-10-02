@@ -124,7 +124,7 @@ public class ScanPatternMenu : EditorWindow
             }
             else if (_isPatternDownloading[pattern.Key])
             {
-                GUILayout.Label("Downlaoding...");
+                GUILayout.Label("Downloading...");
             }
             else
             {
@@ -325,13 +325,22 @@ public class ScanPatternMenu : EditorWindow
 
     private void ReadPatternsRepo()
     {
-        var lines = _patternsRepo.text.Split('\n');
-
-        foreach (var line in lines)
+        if (!_patternsRepo)
         {
-            var fields = line.Split(',');
-            _patternsRepoDict.Add(fields[0], fields[1]);
-            _isPatternDownloading.Add(fields[0], false);
+            Debug.LogWarning("ScanPatternMenu: patterns repo list is not set.");
+            return;
+        }
+
+        foreach (var line in _patternsRepo.text.Split('\n'))
+        {
+            // Skips empty lines (e.g. the trailing newline) and tolerates CRLF line endings.
+            var fields = line.Trim().Split(',');
+            if (fields.Length < 2 || fields[0].Length == 0)
+                continue;
+
+            var name = fields[0].Trim();
+            _patternsRepoDict[name] = fields[1].Trim();
+            _isPatternDownloading[name] = false;
         }
     }
     

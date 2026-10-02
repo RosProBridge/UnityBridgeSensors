@@ -30,6 +30,18 @@ namespace ProBridgeSenors.Tx
         private Vector3 _gravityDirection;
         private float _gravityMagnitude;
 
+#if ROS_V2
+        protected override Qos CreateDefaultQos() => new Qos
+        {
+            qosType = Qos.QOSType.Dict,
+            reliability = Qos.Reliability.BEST_EFFORT,
+            history = Qos.History.KEEP_LAST,
+            depth = 1,
+            durability = Qos.Durability.VOLATILE,
+            liveliness = Qos.Liveliness.SYSTEM_DEFAULT
+        };
+#endif
+
         protected override void AfterEnable()
         {
             _gravityDirection = Physics.gravity.normalized;

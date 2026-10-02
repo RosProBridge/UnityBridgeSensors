@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnitySensors.Sensor.LiDAR;
 using sensor_msgs.msg;
 using Unity.Collections;
@@ -15,50 +14,96 @@ namespace ProBridge.Tx.Sensor
     [AddComponentMenu("ProBridge/Tx/sensor_msgs/RaycastLiDAR")]
     public class RaycastLiDARTx : ProBridgeTxStamped<PointCloud2>
     {
+        public enum PatternShift
+        {
+            [Tooltip("The same pattern points every scan.")]
+            None,
+
+            [Tooltip("Every scan takes the next interleaved subset (every N-th point with a shifting phase): " +
+                     "full field of view each scan, accumulating fills the whole pattern.")]
+            Interleaved,
+
+            [Tooltip("Every scan takes the next consecutive part of the pattern, " +
+                     "like a time-ordered Livox pattern played back in real time.")]
+            Sequential
+        }
+
         [Header("Lidar Params")] public ScanPattern _scanPattern;
         public float _minRange = 0.5f;
         public float _maxRange = 100.0f;
         public float _gaussianNoiseSigma = 0.0f;
-        public bool _includeIntensity;
-        public float _maxIntensity = 255.0f;
         public float minAzimuthAngle = 0;
         public float maxAzimuthAngle = 360f;
-        [Range(0f, 1f)] public float downSampleScale = 0;
+        [Tooltip("Share of the pattern points skipped in every scan.")]
+        [Range(0f, 0.99f)] public float downSampleScale = 0.9f;
+        [Tooltip("How the skipped points change from scan to scan (non-repeating pattern).")]
+        public PatternShift patternShift = PatternShift.None;
 
+        [Header("Intensity")]
+        public bool _includeIntensity = true;
+        [Tooltip("Intensity of a retroreflector at zero range.")]
+        public float _maxIntensity = 255.0f;
+        [Tooltip("Intensity of a 100% diffuse surface hit straight on at zero range. " +
+                 "Livox: 150, Velodyne: 100; values above are left to retroreflectors.")]
+        public float diffuseMaxIntensity = 150.0f;
+        [Tooltip("Reflectivity of colliders without LidarReflectivity and without a material.")]
+        [Range(0f, 1f)] public float defaultReflectivity = LidarReflectivity.DefaultValue;
+        [Tooltip("Intensity drop at max range: 0 = none (calibrated reflectivity), 1 = down to zero.")]
+        [Range(0f, 1f)] public float rangeFalloff = 0.2f;
 
-        private RaycastLiDARSensor sensor;
+        private NativeArray<float3> _directions;
+        private NativeArray<RaycastCommand> _commands;
+        private NativeArray<RaycastHit> _hits;
+        private NativeArray<PointXYZI> _points;
+        private NativeParallelHashMap<LidarColliderId, float> _reflectivities;
+        private NativeParallelHashSet<LidarColliderId> _unknownColliders;
+        private int _reflectivityVersion = -1;
 
-        private PointsToPointCloud2MsgJob _pointsToPointCloud2MsgJob;
-        private FilterZeroPointsParallelJob _zeroFilterJob;
+        private int _pointsNum;
+        private int _stride;
+        private int _start;
+        private uint _noiseSeed = 1;
 
-        private JobHandle _jobHandle;
-        private NativeArray<byte> tempData;
-        NativeQueue<PointXYZI> tempQueue;
-        NativeQueue<PointXYZI>.ParallelWriter tempQueueWriter;
-        NativeArray<PointXYZI> tempPointsInput;
-        private bool sensorReady = false;
-        private TimeSpan __dataTime;
+#if ROS_V2
+        protected override Qos CreateDefaultQos() => new Qos
+        {
+            qosType = Qos.QOSType.Dict,
+            reliability = Qos.Reliability.RELIABLE,
+            history = Qos.History.KEEP_LAST,
+            depth = 5,
+            durability = Qos.Durability.VOLATILE,
+            liveliness = Qos.Liveliness.SYSTEM_DEFAULT
+        };
+#endif
 
         protected override void AfterEnable()
         {
-            sensor = gameObject.AddComponent<RaycastLiDARSensor>();
+            if (!_scanPattern)
+            {
+                Debug.LogError($"[{topic}] Scan pattern is not set.", this);
+                enabled = false;
+                return;
+            }
 
-            var processedScanPattern = DownSampleScanPattern(_scanPattern, 1 - downSampleScale);
-            processedScanPattern = ReduceScanPatternAngle(processedScanPattern, minAzimuthAngle, maxAzimuthAngle);
+            var scans = SelectAzimuth(_scanPattern.scans, minAzimuthAngle, maxAzimuthAngle);
+            if (scans.Length == 0)
+            {
+                Debug.LogError($"[{topic}] No pattern points within azimuth {minAzimuthAngle}..{maxAzimuthAngle}.", this);
+                enabled = false;
+                return;
+            }
 
-            sensor._scanPattern = processedScanPattern;
-            sensor._pointsNumPerScan = processedScanPattern.scans.Length;
-            sensor._minRange = _minRange;
-            sensor._maxRange = _maxRange;
-            sensor._gaussianNoiseSigma = _gaussianNoiseSigma;
-            sensor._maxIntensity = _maxIntensity;
-            sensor._frequency_inv = sendRate;
+            _directions = new NativeArray<float3>(scans, Allocator.Persistent);
+            _stride = Mathf.Max(1, Mathf.RoundToInt(1f / (1f - downSampleScale)));
+            _pointsNum = (_directions.Length + _stride - 1) / _stride;
+            _start = 0;
 
-            sensor.enabled = true;
-            sensor.onSensorUpdated += OnSensorUpdated;
-            sensor.Init();
-            sensor.UpdateSensor();
-
+            _commands = new NativeArray<RaycastCommand>(_pointsNum, Allocator.Persistent);
+            _hits = new NativeArray<RaycastHit>(_pointsNum, Allocator.Persistent);
+            _points = new NativeArray<PointXYZI>(_pointsNum, Allocator.Persistent);
+            _reflectivities = new NativeParallelHashMap<LidarColliderId, float>(256, Allocator.Persistent);
+            _unknownColliders = new NativeParallelHashSet<LidarColliderId>(_pointsNum, Allocator.Persistent);
+            _reflectivityVersion = -1;
 
             data.fields = new PointField[_includeIntensity ? 4 : 3];
             for (int i = 0; i < 3; i++)
@@ -84,14 +129,19 @@ namespace ProBridge.Tx.Sensor
 
         protected override void AfterDisable()
         {
-            _jobHandle.Complete();
+            if (_directions.IsCreated) _directions.Dispose();
+            if (_commands.IsCreated) _commands.Dispose();
+            if (_hits.IsCreated) _hits.Dispose();
+            if (_points.IsCreated) _points.Dispose();
+            if (_reflectivities.IsCreated) _reflectivities.Dispose();
+            if (_unknownColliders.IsCreated) _unknownColliders.Dispose();
         }
 
-        private ScanPattern ReduceScanPatternAngle(ScanPattern scanPattern, float minAzimuth, float maxAzimuth)
+        private static float3[] SelectAzimuth(float3[] scans, float minAzimuth, float maxAzimuth)
         {
             // Full-circle case
             if (Math.Abs(maxAzimuth - 360f) < ANGLE_TOLERANCE && Mathf.Abs(minAzimuth) < ANGLE_TOLERANCE)
-                return scanPattern;
+                return scans;
 
             float NormalizeSignedAngle(float angle)
             {
@@ -104,44 +154,18 @@ namespace ProBridge.Tx.Sensor
             minAzimuth = NormalizeSignedAngle(minAzimuth);
             maxAzimuth = NormalizeSignedAngle(maxAzimuth);
 
-            var newScans = (from scan in scanPattern.scans
-                let azimuth = NormalizeSignedAngle(
-                    Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f)
-                where azimuth >= minAzimuth && azimuth <= maxAzimuth
-                select scan).ToList();
+            var selected = new List<float3>();
+            foreach (var scan in scans)
+            {
+                var azimuth = NormalizeSignedAngle(Mathf.Atan2(-scan.x, -scan.z) * Mathf.Rad2Deg + 180f);
+                if (azimuth >= minAzimuth && azimuth <= maxAzimuth)
+                    selected.Add(scan);
+            }
 
-            var newScanPattern = Instantiate(scanPattern);
-            newScanPattern.scans = newScans.ToArray();
-            newScanPattern.size = newScans.Count;
-            return newScanPattern;
+            return selected.ToArray();
         }
 
         private const double ANGLE_TOLERANCE = 0.001;
-
-        private ScanPattern DownSampleScanPattern(ScanPattern scanPattern, float downSample)
-        {
-            var newScanPattern = Instantiate(scanPattern);
-            List<float3> newScans = new List<float3>();
-
-            int downSampleNum = (int)(1 / downSample);
-
-            for (int i = 0; i < scanPattern.size; i += downSampleNum)
-            {
-                newScans.Add(scanPattern.scans[i]);
-            }
-
-            newScanPattern.scans = newScans.ToArray();
-            newScanPattern.size = newScans.Count;
-
-            return newScanPattern;
-        }
-
-
-        private void OnSensorUpdated()
-        {
-            __dataTime = ProBridgeServer.SimTime;
-            sensorReady = true;
-        }
 
         private void CalculateFieldsOffset()
         {
@@ -155,51 +179,127 @@ namespace ProBridge.Tx.Sensor
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
         {
-            if (!sensorReady)
+            if (!_directions.IsCreated)
                 return null;
 
-            tempQueue = new NativeQueue<PointXYZI>(Allocator.TempJob);
-            tempQueueWriter = tempQueue.AsParallelWriter();
+            ScanPoints();
 
-            _zeroFilterJob = new FilterZeroPointsParallelJob()
+            var filtered = new NativeQueue<PointXYZI>(Allocator.TempJob);
+            new FilterZeroPointsParallelJob
             {
-                inputArray = sensor.pointCloud.points,
-                outputQueue = tempQueueWriter
-            };
+                inputArray = _points,
+                outputQueue = filtered.AsParallelWriter()
+            }.Schedule(_pointsNum, 64).Complete();
 
-            _zeroFilterJob.Schedule(sensor.pointsNum, 12).Complete();
-
+            int count = filtered.Count;
             data.is_bigendian = false;
-            data.width = (uint)tempQueue.Count;
+            data.width = (uint)count;
             data.height = 1;
             data.point_step = CalculateFieldsSize();
             data.row_step = data.width * data.point_step;
             data.is_dense = true;
-            data.data = new byte[data.row_step * data.height];
-            tempData = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.TempJob);
-            tempPointsInput = tempQueue.ToArray(Allocator.TempJob);
-            _pointsToPointCloud2MsgJob = new PointsToPointCloud2MsgJob
+
+            var filteredPoints = filtered.ToArray(Allocator.TempJob);
+            var bytes = new NativeArray<byte>((int)(data.row_step * data.height), Allocator.TempJob);
+            new PointsToPointCloud2MsgJob
             {
-                points = tempPointsInput,
-                data = tempData,
+                points = filteredPoints,
+                data = bytes,
                 _includeIntensity = _includeIntensity
+            }.Schedule(count, 64).Complete();
+
+            data.data = bytes.ToArray();
+
+            filtered.Dispose();
+            filteredPoints.Dispose();
+            bytes.Dispose();
+
+            return base.GetMsg(ts);
+        }
+
+        private void ScanPoints()
+        {
+            if (_reflectivityVersion != LidarReflectivity.Version)
+            {
+                _reflectivities.Clear();
+                _reflectivityVersion = LidarReflectivity.Version;
+            }
+
+            var window = new ScanWindow
+            {
+                start = _start,
+                stride = patternShift == PatternShift.Sequential ? 1 : _stride,
+                patternSize = _directions.Length
+            };
+            quaternion rotation = transform.rotation;
+
+            var buildCommands = new BuildRaycastCommandsJob
+            {
+                directions = _directions,
+                window = window,
+                origin = transform.position,
+                rotation = rotation,
+                maxRange = _maxRange,
+                commands = _commands
             };
 
-            _jobHandle = _pointsToPointCloud2MsgJob.Schedule(tempQueue.Count, 12);
-            _jobHandle.Complete();
-            _pointsToPointCloud2MsgJob.data.CopyTo(tempData);
+            var hitsToPoints = new RaycastHitsToPointsJob
+            {
+                directions = _directions,
+                hits = _hits,
+                reflectivities = _reflectivities,
+                unknownColliders = _unknownColliders.AsParallelWriter(),
+                window = window,
+                rotation = rotation,
+                minRange = _minRange,
+                maxRange = _maxRange,
+                noiseSigma = _gaussianNoiseSigma,
+                noiseSeed = _noiseSeed,
+                defaultReflectivity = defaultReflectivity,
+                diffuseMaxIntensity = diffuseMaxIntensity,
+                maxIntensity = _maxIntensity,
+                rangeFalloff = rangeFalloff,
+                points = _points
+            };
 
-            tempData.CopyTo(data.data);
+            var handle = buildCommands.Schedule(_pointsNum, 64);
+            handle = RaycastCommand.ScheduleBatch(_commands, _hits, 64, handle);
+            handle = hitsToPoints.Schedule(_pointsNum, 64, handle);
+            handle.Complete();
 
-            sensorReady = false;
+            ResolveUnknownColliders();
 
-            _jobHandle.Complete();
+            _noiseSeed += (uint)_pointsNum;
+            switch (patternShift)
+            {
+                case PatternShift.None:
+                    break;
+                case PatternShift.Interleaved:
+                    _start = (_start + 1) % _stride;
+                    break;
+                case PatternShift.Sequential:
+                    _start = (_start + _pointsNum) % _directions.Length;
+                    break;
+            }
+        }
 
-            tempQueue.Dispose();
-            tempData.Dispose();
-            tempPointsInput.Dispose();
+        /// <summary>
+        /// Colliders hit for the first time got the default reflectivity in this scan; resolve them for the next ones.
+        /// </summary>
+        private void ResolveUnknownColliders()
+        {
+            if (_unknownColliders.IsEmpty)
+                return;
 
-            return base.GetMsg(__dataTime);
+            using (var ids = _unknownColliders.ToNativeArray(Allocator.Temp))
+            {
+                foreach (var id in ids)
+                {
+                    _reflectivities[id] = LidarReflectivityResolver.Resolve(id.ToCollider(), defaultReflectivity);
+                }
+            }
+
+            _unknownColliders.Clear();
         }
 
 
