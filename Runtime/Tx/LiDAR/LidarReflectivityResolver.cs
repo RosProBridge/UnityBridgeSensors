@@ -48,7 +48,9 @@ namespace ProBridge.Tx.Sensor
             var color = material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor")
                 : material.HasProperty("_Color") ? material.GetColor("_Color")
                 : Color.white;
-            var texture = material.HasProperty("_BaseMap") ? material.GetTexture("_BaseMap") : material.mainTexture;
+            var texture = material.HasProperty("_BaseMap") ? material.GetTexture("_BaseMap")
+                : material.HasProperty("_MainTex") ? material.GetTexture("_MainTex")
+                : null; // e.g. Shader Graph materials without a main texture
 
             var albedo = color.linear;
             if (texture)
