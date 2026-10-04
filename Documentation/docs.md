@@ -39,9 +39,11 @@ The `CompressedImage` publisher sends `sensor_msgs.msg.CompressedImage` messages
   - A slider (0–100) where 0 is the fastest (lowest quality) and 100 is the slowest (highest quality).
   - **Note**: This option is applicable only for the JPEG format.
 
-For the `CompressedImage` output to be usable, it typically requires a `CameraInfo` publisher with the same `frame_id`. Follow this naming convention:
-- **CompressedImage:** `/<CameraName>/compressed`
-- **CameraInfo:** `/<CameraName>/camera_info`
+For the `CompressedImage` output to be usable, it typically requires a [CameraInfo](#camerainfo) publisher linked to it. Follow the `image_transport` naming, which tools like RViz use to find the camera info of an image:
+- **CompressedImage:** `/<CameraName>/image_raw/compressed` (base topic `/<CameraName>/image_raw`)
+- **CameraInfo:** `/<CameraName>/camera_info` (next to the base topic)
+
+Use the optical frame of the camera as `frame_id` (z forward, x right, y down).
 
 ## Image
 
@@ -49,13 +51,15 @@ The `Image` publisher sends the camera image uncompressed as `sensor_msgs.msg.Im
 
 - **Render Camera, Texture Width, Texture Height:** same as in [CompressedImage](#compressedimage); the camera is rendered on demand at `sendRate`.
 
-Topic naming: `/<CameraName>/image_raw` with a `CameraInfo` publisher on `/<CameraName>/camera_info`.
+Topic naming: `/<CameraName>/image_raw` with a linked `CameraInfo` publisher on `/<CameraName>/camera_info`.
 
 ## CameraInfo
 
-The `CameraInfo` publisher sends `sensor_msgs.msg.CameraInfo` messages. It has the following field:
+The `CameraInfo` publisher sends `sensor_msgs.msg.CameraInfo` messages:
 
-- **Camera:** The camera for which the information will be sent. This is usually the same camera connected to the `CompressedImage` publisher.
+- **Image Source:** an image publisher (`CompressedImage`, `Image`) on the same camera. Camera info is then sent for every published frame, with the frame's stamp, `frame_id` and resolution, so tools that match images and camera info by stamp work; `Send Rate` is not used. Empty: camera info is sent at `Send Rate` for the camera below, with this component's `frame_id`.
+- **Camera:** the camera without an image source.
+- **Preset:** a `CameraInfoPreset` asset (**Create > ProBridge > Camera Info**) with the calibration: resolution, distortion model and `D`, `K`, `R`, `P`. A ROS calibration file (`camera_calibration` YAML) is imported from the asset's context menu (**Import ROS calibration YAML...**). Empty: an ideal pinhole camera is computed from the camera field of view (physical camera settings included), principal point in the image centre, no distortion.
 
 ## Imu
 

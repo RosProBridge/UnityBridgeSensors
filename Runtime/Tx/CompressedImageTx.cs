@@ -8,7 +8,7 @@ using UnityEngine.Experimental.Rendering;
 namespace ProBridge.Tx.Sensor
 {
     [AddComponentMenu("ProBridge/Tx/sensor_msgs/CompressedImage")]
-    public class CompressedImageTx : ProBridgeTxStamped<CompressedImage>
+    public class CompressedImageTx : ProBridgeTxStamped<CompressedImage>, ICameraImageSource
     {
         public enum Format
         {
@@ -138,6 +138,12 @@ namespace ProBridge.Tx.Sensor
 
         private int __frameRateCounter = 0;
 
+        public Camera ImageCamera => renderCamera;
+        public int ImageWidth => textureWidth;
+        public int ImageHeight => textureHeight;
+        public string ImageFrameId => frame_id;
+        public event Action<TimeSpan> FramePublished;
+
         protected override void AfterEnable()
         {
             _capture = CameraCapture.Create(renderCamera, textureWidth, textureHeight,
@@ -198,6 +204,7 @@ namespace ProBridge.Tx.Sensor
             data.data = encoded;
 
             __frameRateCounter++;
+            FramePublished?.Invoke(ts);
             return base.GetMsg(ts);
         }
     }

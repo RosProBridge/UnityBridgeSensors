@@ -9,7 +9,7 @@ namespace ProBridge.Tx.Sensor
     /// 640x480 at 10 Hz is about 9.2 MB/s (74 Mbit/s).
     /// </summary>
     [AddComponentMenu("ProBridge/Tx/sensor_msgs/Image")]
-    public class ImageTx : ProBridgeTxStamped<sensor_msgs.msg.Image>
+    public class ImageTx : ProBridgeTxStamped<sensor_msgs.msg.Image>, ICameraImageSource
     {
         #region Inspector
 
@@ -33,6 +33,12 @@ namespace ProBridge.Tx.Sensor
         private bool _hasFrame;
 
         private int __frameRateCounter = 0;
+
+        public Camera ImageCamera => renderCamera;
+        public int ImageWidth => textureWidth;
+        public int ImageHeight => textureHeight;
+        public string ImageFrameId => frame_id;
+        public event Action<TimeSpan> FramePublished;
 
         protected override void AfterEnable()
         {
@@ -103,6 +109,7 @@ namespace ProBridge.Tx.Sensor
             data.data = _frame;
 
             __frameRateCounter++;
+            FramePublished?.Invoke(_frameStamp);
             return base.GetMsg(_frameStamp);
         }
     }

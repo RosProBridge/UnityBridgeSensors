@@ -19,54 +19,133 @@ using UnityEngine;
 
 namespace ProBridge.Tx.Sensor
 {
+    /// <summary>
+    /// sensor_msgs/CameraInfo. With an image source (CompressedImageTx, ImageTx) it is sent for every published
+    /// frame with the frame's stamp, frame_id and resolution, and sendRate is not used. Without a source it is sent
+    /// at sendRate for <see cref="camera"/> with this component's frame_id.
+    /// Intrinsics come from the preset; without a preset an ideal pinhole camera is computed from the field of view.
+    /// </summary>
     [AddComponentMenu("ProBridge/Tx/sensor_msgs/CameraInfo")]
     public class CameraInfoTx : ProBridgeTxStamped<CameraInfo>
     {
         //The default Camera Info distortion model.
         const string k_PlumbBobDistortionModel = "plumb_bob";
 
+        [Tooltip("Image publisher (CompressedImageTx, ImageTx) to follow: camera_info is sent with every frame, " +
+                 "with its stamp, frame_id and resolution. Empty: sent at sendRate for the camera below.")]
+        public MonoBehaviour imageSource;
 
+        [Tooltip("Camera without an image source.")]
         public Camera camera;
+
+        [Tooltip("Calibration (intrinsics, distortion). Empty: an ideal pinhole camera from the camera field of view.")]
+        public CameraInfoPreset preset;
+
+        private ICameraImageSource _source;
+        private bool _hasFrame;
+        private TimeSpan _frameStamp;
+        private bool _presetSizeWarned;
+
+        private void OnValidate()
+        {
+            if (imageSource != null && !(imageSource is ICameraImageSource))
+            {
+                Debug.LogWarning($"{imageSource.GetType().Name} is not a camera image publisher " +
+                                 "(CompressedImageTx, ImageTx).", this);
+                imageSource = null;
+            }
+        }
+
+        protected override void AfterEnable()
+        {
+            _source = imageSource as ICameraImageSource;
+            _hasFrame = false;
+            if (_source != null)
+            {
+                // Sent on the step after each frame: check every step.
+                sendRate = 0f;
+                _source.FramePublished += OnFramePublished;
+            }
+        }
+
+        protected override void AfterDisable()
+        {
+            if (_source != null)
+                _source.FramePublished -= OnFramePublished;
+            _source = null;
+        }
+
+        private void OnFramePublished(TimeSpan stamp)
+        {
+            _frameStamp = stamp;
+            _hasFrame = true;
+        }
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
         {
-            ConstructCameraInfoMessage(camera);
-            return base.GetMsg(ts);
+            Camera cam;
+            uint width, height;
+            if (_source != null)
+            {
+                if (!_hasFrame)
+                    return null;
+                _hasFrame = false;
+
+                ts = _frameStamp;
+                cam = _source.ImageCamera;
+                width = (uint)_source.ImageWidth;
+                height = (uint)_source.ImageHeight;
+            }
+            else
+            {
+                cam = camera;
+                if (cam == null)
+                    return null;
+                Rect pixelRect = cam.pixelRect;
+                width = (uint)pixelRect.width;
+                height = (uint)pixelRect.height;
+            }
+
+            if (preset != null)
+                FillFromPreset(width, height);
+            else if (cam != null)
+                FillFromCamera(cam, width, height);
+            else
+                return null;
+
+            var msg = base.GetMsg(ts);
+            if (_source != null)
+                data.header.frame_id = _source.ImageFrameId;
+            return msg;
         }
 
-        public void ConstructCameraInfoMessage(Camera unityCamera,
-            float horizontalCameraOffsetDistanceMeters = 0.0f, float integerResolutionTolerance = 0.01f)
+        private void FillFromPreset(uint width, uint height)
         {
-            Rect pixelRect = unityCamera.pixelRect;
-            var resolutionWidth = (uint)pixelRect.width;
-            var resolutionHeight = (uint)pixelRect.height;
-
-            //Check whether the resolution is an integer value, if not, raise a warning.
-            //Note: While the resolution of a screen or a render texture is always an integer value,
-            //      one can change the rendering region within the screen / texture using the
-            //      viewport rect. It is possible that this region will be a non-integer resolution.
-            //      since the resolution of the CameraInfo message is stored as a uint,
-            //      non-integer values are not supported
-            if ((pixelRect.width - (float)resolutionWidth) > integerResolutionTolerance)
+            if (!_presetSizeWarned && (preset.width != width || preset.height != height))
             {
-                Debug.LogWarning($"CameraInfoMsg for camera with name {unityCamera.gameObject.name}, " +
-                                 $"Resolution width is not an integer: {pixelRect.width}. Adjust the viewport rect.");
+                Debug.LogWarning($"[{topic}] Camera info preset {preset.name} is for {preset.width}x{preset.height}, " +
+                                 $"the image is {width}x{height}.", this);
+                _presetSizeWarned = true;
             }
 
-            if ((pixelRect.height - (float)resolutionHeight) > integerResolutionTolerance)
-            {
-                Debug.LogWarning($"CameraInfoMsg for camera with name {unityCamera.gameObject.name}, " +
-                                 $"Resolution height is not an integer: {pixelRect.height}. Adjust the viewport rect.");
-            }
+            data.width = preset.width;
+            data.height = preset.height;
+            data.distortion_model = preset.distortionModel;
+            data.d = preset.d;
+            Array.Copy(preset.k, data.k, 9);
+            Array.Copy(preset.r, data.r, 9);
+            Array.Copy(preset.p, data.p, 12);
+            data.binning_x = preset.binningX;
+            data.binning_y = preset.binningY;
+            SetFullRoi();
+        }
 
-            if (resolutionWidth != unityCamera.scaledPixelWidth || resolutionHeight != unityCamera.scaledPixelHeight)
-            {
-                //Check for resolution scaling (Not Implemented). TODO - Implement.
-                throw new NotImplementedException(
-                    $"Unable to construct CameraInfoMsg for camera with name {unityCamera.gameObject.name}, " +
-                    $"Resolution scaling is not yet supported.");
-            }
-
+        /// <summary>
+        /// Ideal pinhole camera of the given resolution: focal length from the vertical field of view,
+        /// principal point in the image centre, no distortion.
+        /// </summary>
+        private void FillFromCamera(Camera unityCamera, uint resolutionWidth, uint resolutionHeight)
+        {
             if (unityCamera.lensShift != Vector2.zero)
             {
                 throw new NotImplementedException(
@@ -78,13 +157,11 @@ namespace ProBridge.Tx.Sensor
             data.height = resolutionHeight;
 
             //Focal center currently assumes zero lens shift.
-            //Focal center x.
             double cX = resolutionWidth / 2.0;
-            //Focal center y.
             double cY = resolutionHeight / 2.0;
 
             //Get the vertical field of view of the camera taking into account any physical camera settings.
-            float verticalFieldOfView = GetVerticalFieldOfView(unityCamera);
+            float verticalFieldOfView = GetVerticalFieldOfView(unityCamera, resolutionWidth, resolutionHeight);
 
             //Sources
             //http://paulbourke.net/miscellaneous/lens/
@@ -95,91 +172,70 @@ namespace ProBridge.Tx.Sensor
 
             //As this is a perfect pinhole camera, the fx = fy = f
             //Source http://ksimek.github.io/2013/08/13/intrinsic/
-            //Focal Length (x)
             double fX = focalLengthInPixels;
-            //Focal Length (y)
             double fY = focalLengthInPixels;
 
             //Source: http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/CameraInfo.html
             //For a single camera, tX = tY = 0.
-            //For a stereo camera, assuming Tz = 0, Ty = 0 and Tx = -fx' * B (for the second camera)
-            double baseline = horizontalCameraOffsetDistanceMeters;
-
-            double tX = -fX * baseline;
+            double tX = 0.0;
             double tY = 0.0;
 
             //Axis Skew, Assuming none.
             double s = 0.0;
 
             //http://ksimek.github.io/2013/08/13/intrinsic/
-            data.k = new double[]
-            {
-                fX, s, cX,
-                0, fY, cY,
-                0, 0, 1
-            };
+            double[] k = data.k;
+            k[0] = fX; k[1] = s;  k[2] = cX;
+            k[3] = 0;  k[4] = fY; k[5] = cY;
+            k[6] = 0;  k[7] = 0;  k[8] = 1;
 
-            //The distortion parameters, size depending on the distortion model.
-            //For "plumb_bob", the 5 parameters are: (k1, k2, t1, t2, k3).
-            //No distortion means d = {k1, k2, t1, t2, k3} = {0, 0, 0, 0, 0}
+            //No distortion: "plumb_bob" with d = {k1, k2, t1, t2, k3} = {0, 0, 0, 0, 0}
             data.distortion_model = k_PlumbBobDistortionModel;
-            data.d = new double[]
-            {
-                0.0, //k1
-                0.0, //k2
-                0.0, //t1
-                0.0, //t2
-                0.0 //k3
-            };
+            data.d = _zeroDistortion;
 
-            //Rectification matrix (stereo cameras only)
-            //A rotation matrix aligning the camera coordinate system to the ideal
-            //stereo image plane so that epipolar lines in both stereo images are
-            //parallel.
-            data.r = new double[]
-            {
-                1, 0, 0,
-                0, 1, 0,
-                0, 0, 1
-            };
-
+            //Rectification matrix (stereo cameras only): identity.
+            double[] r = data.r;
+            r[0] = 1; r[1] = 0; r[2] = 0;
+            r[3] = 0; r[4] = 1; r[5] = 0;
+            r[6] = 0; r[7] = 0; r[8] = 1;
 
             //Projection/camera matrix
             //     [fx'  0  cx' Tx]
             // P = [ 0  fy' cy' Ty]
             //     [ 0   0   1   0]
-            data.p = new double[]
-            {
-                fX, 0, cX, tX,
-                0, fY, cY, tY,
-                0, 0, 1, 0
-            };
+            double[] p = data.p;
+            p[0] = fX; p[1] = 0;  p[2] = cX;  p[3] = tX;
+            p[4] = 0;  p[5] = fY; p[6] = cY;  p[7] = tY;
+            p[8] = 0;  p[9] = 0;  p[10] = 1;  p[11] = 0;
 
             //We're not worrying about binning...
             data.binning_x = 0;
             data.binning_y = 0;
-
-            data.roi = new RegionOfInterest
-            {
-                x_offset = 0,
-                y_offset = 0,
-                height = 0,
-                width = 0,
-                do_rectify = false
-            };
+            SetFullRoi();
         }
 
+        private readonly double[] _zeroDistortion = new double[5];
 
-        private static float GetVerticalFieldOfView(Camera camera)
+        private void SetFullRoi()
+        {
+            if (data.roi == null)
+                data.roi = new RegionOfInterest();
+            data.roi.x_offset = 0;
+            data.roi.y_offset = 0;
+            data.roi.height = 0;
+            data.roi.width = 0;
+            data.roi.do_rectify = false;
+        }
+
+        private static float GetVerticalFieldOfView(Camera camera, uint width, uint height)
         {
             if (camera.usePhysicalProperties)
             {
                 //The gateFit may influence the vertical field of view.
                 Vector2 sensorSize = camera.sensorSize;
-                Rect pixelRect = camera.pixelRect;
 
                 float sensorRatioY = sensorSize.y / sensorSize.x;
-                float pixelRatioY = pixelRect.height / pixelRect.width;
+                float pixelRatioY = (float)height / width;
                 float fovMultiplier = pixelRatioY / sensorRatioY;
 
                 switch (camera.gateFit)
@@ -191,27 +247,11 @@ namespace ProBridge.Tx.Sensor
                         //The fieldOfView from the camera is influenced by the ratio of the pixels vs the sensor size ratio.
                         return camera.fieldOfView * fovMultiplier;
                     case Camera.GateFitMode.Fill:
-                        if (fovMultiplier >= 1.0f)
-                        {
-                            //Same as GateFitMode.Vertical
-                            return camera.fieldOfView;
-                        }
-                        else
-                        {
-                            //Same as GateFitMode.Horizontal
-                            return camera.fieldOfView * fovMultiplier;
-                        }
+                        //Same as GateFitMode.Vertical or Horizontal
+                        return fovMultiplier >= 1.0f ? camera.fieldOfView : camera.fieldOfView * fovMultiplier;
                     case Camera.GateFitMode.Overscan:
-                        if (fovMultiplier <= 1.0f)
-                        {
-                            //Same as GateFitMode.Vertical
-                            return camera.fieldOfView;
-                        }
-                        else
-                        {
-                            //Same as GateFitMode.Horizontal
-                            return camera.fieldOfView * fovMultiplier;
-                        }
+                        //Same as GateFitMode.Vertical or Horizontal
+                        return fovMultiplier <= 1.0f ? camera.fieldOfView : camera.fieldOfView * fovMultiplier;
                     case Camera.GateFitMode.None:
                         //The view is stretched, the fieldOfView is valid.
                         return camera.fieldOfView;
