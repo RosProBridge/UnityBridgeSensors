@@ -6,10 +6,11 @@
   <summary><strong>Table of Contents</strong></summary>
 
 1. [CompressedImage](#compressedimage)
-2. [CameraInfo](#camerainfo)
-3. [Imu](#imu)
-4. [NavSatFix](#navsatfix)
-5. [RayCast Lidar](#raycast-lidar)
+2. [Image](#image)
+3. [CameraInfo](#camerainfo)
+4. [Imu](#imu)
+5. [NavSatFix](#navsatfix)
+6. [RayCast Lidar](#raycast-lidar)
    - [Non-repeating Scan Pattern](#non-repeating-scan-pattern)
    - [Intensity](#intensity)
    - [Adding Scan Patterns](#adding-scan-patterns)
@@ -29,6 +30,7 @@ The `CompressedImage` publisher sends `sensor_msgs.msg.CompressedImage` messages
 - **Render Camera:**
   - This is where you reference the camera whose output will be published.
   - **Note**: The camera used here should not be the scene's main camera, as it will not render to the screen when referenced.
+  - The camera is disabled while the publisher is enabled and rendered on demand, once per sent frame (`sendRate`), so it costs nothing between frames. A new frame is rendered only after the previous one has been read back and encoded.
 - **Texture Width:**
   - Specifies the width of the output image.
 - **Texture Height:**
@@ -40,6 +42,14 @@ The `CompressedImage` publisher sends `sensor_msgs.msg.CompressedImage` messages
 For the `CompressedImage` output to be usable, it typically requires a `CameraInfo` publisher with the same `frame_id`. Follow this naming convention:
 - **CompressedImage:** `/<CameraName>/compressed`
 - **CameraInfo:** `/<CameraName>/camera_info`
+
+## Image
+
+The `Image` publisher sends the camera image uncompressed as `sensor_msgs.msg.Image` (`rgb8`, rows top-down). There is no encoding cost, but the traffic is large: 640x480 at 10 Hz is about 9.2 MB/s (74 Mbit/s), so use it on a gigabit local network and keep `Compression Level` at `0`.
+
+- **Render Camera, Texture Width, Texture Height:** same as in [CompressedImage](#compressedimage); the camera is rendered on demand at `sendRate`.
+
+Topic naming: `/<CameraName>/image_raw` with a `CameraInfo` publisher on `/<CameraName>/camera_info`.
 
 ## CameraInfo
 
@@ -55,13 +65,15 @@ Default QoS (ROS 2) of a new IMU component: `Dict`, `BEST_EFFORT`, `KEEP_LAST`, 
 
 ## NavSatFix
 
-The `NavSatFix` publisher sends `sensor_msgs.msg.NavSatFix` messages. It includes the following field:
+The `NavSatFix` publisher sends `sensor_msgs.msg.NavSatFix` messages (WGS84). The Unity scene is treated as a plane tangent to the ellipsoid at the origin: local `x` = east, `y` = up, `z` = north. The position is converted Unity → ECEF (EPSG:4978) → LLA (EPSG:4979).
 
-- **Start LLA:** Represents the initial latitude, longitude, and altitude (LLA) in `Vector3` format.
+- **Init Origin:** `Transform` that marks the origin of the local frame; its rotation sets the east/north axes. If empty, the position of the sensor at the first enable is used, with world axes.
+- **Start Latitude / Longitude / Altitude:** LLA of the origin (degrees, meters above the ellipsoid).
+- **Apply Noise / Noise Std Dev:** Gaussian noise added to latitude, longitude (degrees) and altitude (meters).
 
 ## RayCast Lidar
 
-The `RayCast Lidar` publisher sends `sensor_msgs.msg.PointCloud2` messages (`x`, `y`, `z` and optionally `intensity`, all `float32`). Rays are cast with `RaycastCommand` in Burst jobs only when a message is sent: nothing is computed while the component is disabled or the host is disconnected (see `Use Without Link` in the ProBridge docs).
+The `RayCast Lidar` publisher sends `sensor_msgs.msg.PointCloud2` messages (`x`, `y`, `z` and optionally `intensity`, all `float32`). Rays are cast with `RaycastCommand` in Burst jobs only when a message is sent: nothing is computed while the component is disabled or the host is disconnected (see `Use Without Connect` in the ProBridge docs).
 
 Default QoS (ROS 2) of a new lidar component: `Dict`, `RELIABLE`, `KEEP_LAST`, depth `5`, `VOLATILE`, liveliness `SYSTEM_DEFAULT`.
 

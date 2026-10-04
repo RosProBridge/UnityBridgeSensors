@@ -4,7 +4,7 @@ Unity ProBridge Sensors is a plugin for [Unity ProBridge](https://github.com/Ros
 
 ## Available Sensors
 
-- **RGB Camera**
+- **RGB Camera** (compressed JPEG/PNG or raw `sensor_msgs/Image`)
 - **IMU**
 - **NavSatFix**
 - **Lidar** (raycast, Burst jobs):

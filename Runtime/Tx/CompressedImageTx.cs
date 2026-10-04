@@ -3,7 +3,7 @@ using System.Threading;
 using sensor_msgs.msg;
 using Unity.Collections;
 using UnityEngine;
-using UnityEngine.Rendering;
+using UnityEngine.Experimental.Rendering;
 
 namespace ProBridge.Tx.Sensor
 {
@@ -19,6 +19,7 @@ namespace ProBridge.Tx.Sensor
         #region Inspector
 
         public Format format = Format.jpeg;
+        [Tooltip("Camera whose image is published. It is rendered on demand at sendRate, not every frame.")]
         public Camera renderCamera;
         public int textureWidth = 1024;
         public int textureHeight = 1024;
@@ -28,140 +29,140 @@ namespace ProBridge.Tx.Sensor
         public float frameRate;
         #endregion
 
-        private struct PipeBuffer
+        /// <summary>
+        /// Encoder thread of one enable/disable cycle: takes a raw frame, publishes the encoded one.
+        /// </summary>
+        private sealed class Encoder
         {
-            public bool useRender, useCompressor;
-            public TimeSpan timeRender, timeCompressor, timeSender;
-            public NativeArray<byte> bufRender;
-            public byte[] bufCompressor;
-            public byte[] bufSender;
-            public object syncSender;
-            public string formatSender;
+            private readonly Format _format;
+            private readonly int _width, _height;
+            public volatile int quality;
 
-            public Texture2D textPNG;
+            private readonly byte[] _raw;
+            private TimeSpan _rawStamp;
+            private volatile bool _busy;
+            private volatile bool _running = true;
+            private readonly AutoResetEvent _rawReady = new AutoResetEvent(false);
+            private readonly Thread _thread;
 
-            public void Init(int width, int height)
+            private readonly object _sendLock = new object();
+            private byte[] _encoded;
+            private TimeSpan _encodedStamp;
+
+            public Encoder(Format format, int width, int height, int quality)
             {
-                textPNG = new Texture2D(width, height, TextureFormat.RGB24, false);
-                bufRender = new NativeArray<byte>(width * height * 4, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-                bufCompressor = new byte[0];
-                bufSender = null;
-                useRender = true;
-                useCompressor = true;
-                syncSender = new object();
-                formatSender = "";
+                _format = format;
+                _width = width;
+                _height = height;
+                this.quality = quality;
+                _raw = new byte[width * height * (format == Format.png ? 3 : 4)];
+
+                _thread = new Thread(Loop) { IsBackground = true, Name = "CompressedImageTx encoder" };
+                _thread.Start();
             }
 
-            public void Dispose()
+            public bool Busy => _busy;
+
+            public void Submit(NativeArray<byte> frame, TimeSpan stamp)
             {
-                bufSender = null;
-                bufCompressor = null;
+                if (_busy || !_running)
+                    return;
+
+                frame.CopyTo(_raw);
+                _rawStamp = stamp;
+                _busy = true;
+                _rawReady.Set();
+            }
+
+            public bool TryTake(out byte[] encoded, out TimeSpan stamp)
+            {
+                lock (_sendLock)
+                {
+                    encoded = _encoded;
+                    stamp = _encodedStamp;
+                    _encoded = null;
+                }
+                return encoded != null;
+            }
+
+            public void Stop()
+            {
+                _running = false;
+                _rawReady.Set();
+                if (!_thread.Join(1000))
+                    Debug.LogWarning("CompressedImageTx: encoder thread did not stop in time.");
+            }
+
+            private void Loop()
+            {
+                var jpeg = _format == Format.jpeg ? new JpegEncoder() : null;
                 try
                 {
-                    bufRender.Dispose();
+                    while (_running)
+                    {
+                        if (!_rawReady.WaitOne(500) || !_running || !_busy)
+                            continue;
+
+                        try
+                        {
+                            byte[] encoded = _format == Format.jpeg
+                                ? jpeg.Encode(_raw, _width, _height, quality)
+                                : ImageConversion.EncodeArrayToPNG(_raw, GraphicsFormat.R8G8B8_UNorm, (uint)_width, (uint)_height);
+
+                            lock (_sendLock)
+                            {
+                                _encoded = encoded;
+                                _encodedStamp = _rawStamp;
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogException(e);
+                        }
+                        finally
+                        {
+                            _busy = false;
+                        }
+                    }
                 }
-                catch { }
-                try
+                finally
                 {
-                    Destroy(textPNG);
+                    jpeg?.Dispose();
                 }
-                catch { }
             }
         }
 
-
-        private RenderTexture renderTexture;
+        private CameraCapture _capture;
+        private Encoder _encoder;
+        private TimeSpan _captureStamp;
 
         private int __frameRateCounter = 0;
-        private PipeBuffer __pb = new PipeBuffer();
-
-        private EventWaitHandle __readyRawTextureData = new EventWaitHandle(false, EventResetMode.AutoReset);
-        private Thread jpegCompressionThread;
-
-        private bool __active = false;
-
-        private bool inRequest;
-        private bool disposing;
 
         protected override void AfterEnable()
         {
-            if (renderCamera == null)
+            _capture = CameraCapture.Create(renderCamera, textureWidth, textureHeight,
+                format == Format.png ? TextureFormat.RGB24 : TextureFormat.RGBA32, OnFrame, this);
+            if (_capture == null)
             {
-                Debug.LogWarning("Render camera is not set.");
                 enabled = false;
+                return;
             }
 
-            if (renderCamera.targetTexture == null)
-            {
-                renderTexture = new RenderTexture(textureWidth, textureHeight, 24, RenderTextureFormat.ARGB32);
-                renderTexture.Create();
-                renderCamera.targetTexture = renderTexture;
-            }
-            else
-            {
-                renderTexture = renderCamera.targetTexture;
-                if (renderTexture.format != RenderTextureFormat.ARGB32)
-                {
-                    throw new Exception("The RenderTexture format must be ARGB32.");
-                }
+            _encoder = new Encoder(format, textureWidth, textureHeight, (int)CompressionQuality);
 
-                if (renderTexture.width != textureWidth || renderTexture.height != textureHeight)
-                {
-                    throw new Exception($"RenderTexture dimensions are incorrect. Expected {textureWidth}x{textureHeight}, but got {renderTexture.width}x{renderTexture.height}.");
-                }
-            }
-
-            __pb.Init(textureWidth, textureHeight);
-
-            __active = true;
-            disposing = false;
-            __readyRawTextureData.Reset();
-            jpegCompressionThread = new Thread(JpegCompressor);
-            jpegCompressionThread.Start();
-
-            // sendRate 0 means "every simulation step" (ProBridge 3.5+); InvokeRepeating needs a positive period.
-            InvokeRepeating(nameof(RenderLoop), 0, sendRate > 0f ? sendRate : Time.fixedDeltaTime);
+            // sendRate 0 means "every simulation step".
+            _capture.SetPeriod(sendRate > 0f ? sendRate : Time.fixedDeltaTime);
             InvokeRepeating(nameof(CalcFPS), 0, 1);
         }
 
         protected override void AfterDisable()
         {
-            if (inRequest)
-            {
-                disposing = true;
-                return;
-            }
+            CancelInvoke(nameof(CalcFPS));
 
-            __active = false;
-
-            // This might be called after the component got destroyed; prevents getting a null ref exception.
-            if (this != null)
-            {
-                CancelInvoke(nameof(RenderLoop));
-                CancelInvoke(nameof(CalcFPS));
-            }
-
-            if (jpegCompressionThread != null)
-            {
-                try
-                {
-                    __readyRawTextureData.Set();
-                    if (!jpegCompressionThread.Join(500))
-                        jpegCompressionThread.Abort();
-                }
-                catch { }
-                finally
-                {
-                    jpegCompressionThread = null;
-                }
-            }
-
-            __pb.Dispose();
-
-            if (renderTexture != null)
-            {
-                renderTexture.Release();
-            }
+            _encoder?.Stop();
+            _encoder = null;
+            _capture?.Dispose();
+            _capture = null;
         }
 
         void CalcFPS()
@@ -170,109 +171,34 @@ namespace ProBridge.Tx.Sensor
             __frameRateCounter = 0;
         }
 
-        void RenderLoop()
+        private void Update()
         {
-            if (__pb.useRender && __active)
-            {
-                __pb.useRender = false;
-                __pb.timeRender = ProBridgeServer.SimTime;
+            // A new frame is rendered when due and the previous one has been read back and encoded.
+            if (_capture == null || !_capture.IsDue || _encoder.Busy || !Active)
+                return;
+            if (!useWithoutConnect && (host == null || !host.IsConnected))
+                return;
 
-                if (inRequest) return;
-                inRequest = true;
-
-                switch (format)
-                {
-                    case Format.jpeg:
-                        AsyncGPUReadback.RequestIntoNativeArray(ref __pb.bufRender, renderTexture, 0, OnCompleteReadback);
-                        break;
-
-                    case Format.png:
-                        AsyncGPUReadback.Request(renderTexture, 0, TextureFormat.RGB24, OnCompleteReadbackPNG);
-                        break;
-                }
-            }
+            _encoder.quality = (int)CompressionQuality;
+            _captureStamp = ProBridgeServer.SimTime;
+            _capture.Capture();
         }
 
-        private void OnCompleteReadback(AsyncGPUReadbackRequest request)
+        private void OnFrame(NativeArray<byte> frame)
         {
-            inRequest = false;
-            if (disposing)
-            {
-                AfterDisable();
-                return;
-            }
-
-            __pb.useRender = true;
-            if (request.hasError || !__active || !__pb.useCompressor)
-                return;
-
-            __pb.bufCompressor = __pb.bufRender.ToArray();
-            __pb.timeCompressor = __pb.timeRender;
-            __readyRawTextureData.Set();
-        }
-
-        private void OnCompleteReadbackPNG(AsyncGPUReadbackRequest request)
-        {
-            __pb.useRender = true;
-            if (request.hasError || !__active)
-                return;
-
-            __pb.textPNG.LoadRawTextureData(request.GetData<Color32>());
-            __pb.textPNG.Apply();
-
-            __pb.timeSender = __pb.timeRender;
-            __pb.formatSender = "png";
-            __pb.bufSender = __pb.textPNG.EncodeToPNG();
+            _encoder?.Submit(frame, _captureStamp);
         }
 
         protected override ProBridge.Msg GetMsg(TimeSpan ts)
         {
-            lock (__pb.syncSender)
-            {
-                if (__pb.bufSender == null)
-                    return null;
+            if (_encoder == null || !_encoder.TryTake(out var encoded, out ts))
+                return null;
 
-                ts = __pb.timeSender;
-                data.format = __pb.formatSender;
-                data.data = __pb.bufSender;
-                __pb.bufSender = null;
-            }
+            data.format = format == Format.png ? "png" : "jpeg";
+            data.data = encoded;
 
             __frameRateCounter++;
             return base.GetMsg(ts);
-        }
-
-        private void JpegCompressor()
-        {
-            var encoder = new JpegEncoder();
-            try
-            {
-                while (__active)
-                {
-                    if (!__readyRawTextureData.WaitOne(500) || format != Format.jpeg || !__active)
-                        continue;
-
-                    __pb.useCompressor = false;
-
-                    var jpg = encoder.Encode(__pb.bufCompressor, textureWidth, textureHeight, (int)CompressionQuality);
-
-                    lock (__pb.syncSender)
-                    {
-                        if (__pb.bufSender == null)
-                        {
-                            __pb.bufSender = jpg;
-                            __pb.timeSender = __pb.timeCompressor;
-                            __pb.formatSender = "jpeg";
-                        }
-                    }
-
-                    __pb.useCompressor = true;
-                }
-            }
-            finally
-            {
-                encoder.Dispose();
-            }
         }
     }
 }

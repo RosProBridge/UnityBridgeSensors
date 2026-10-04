@@ -317,7 +317,7 @@ namespace ProBridge.Tx.Sensor
         {
             if (!Active || !host || topic == "")
                 return false;
-            if (!useWithoutLink && !host.IsConnected)
+            if (!useWithoutConnect && !host.IsConnected)
                 return false;
             return true;
         }
